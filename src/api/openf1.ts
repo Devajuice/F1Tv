@@ -24,7 +24,7 @@ export interface F1Weather {
   rainfall: number | null;
 }
 
-const OPENF1_BASE = 'https://api.openf1.org/v1';
+const OPENF1_BASE = '/api/openf1';
 
 // --- Caching ---
 interface CacheEntry<T> { data: T; time: number; }

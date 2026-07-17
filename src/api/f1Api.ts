@@ -1,4 +1,4 @@
-const BASE_URL = 'https://api.jolpi.ca/ergast/f1';
+const BASE_URL = '/api/jolpica';
 
 export interface DriverStanding {
   position: string;
