@@ -2,7 +2,7 @@ import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { Play, Film, Trophy, MapPin, Clock, Thermometer, Droplets, Wind, CloudRain, ChevronRight, ChevronDown } from 'lucide-react';
 import type { F1Session, F1Weather } from '../api/openf1';
-import { getSessions, getLatestWeather, getNextRaceSession, getWeatherForSession, getSessionStatus, getSessionLabel, getSessionProgress } from '../api/openf1';
+import { getSessions, getFallbackSessions, getLatestWeather, getNextRaceSession, getWeatherForSession, getSessionStatus, getSessionLabel, getSessionProgress } from '../api/openf1';
 import { getDriverStandings, getConstructorStandings } from '../api/f1Api';
 import type { DriverStanding, ConstructorStanding } from '../api/f1Api';
 
@@ -32,13 +32,21 @@ export default function Home() {
     };
 
     getSessions().then((all) => {
-      const upcoming = all.filter((s) => !s.is_cancelled);
-      setSessions(upcoming);
-      loadWeather(all);
-      interval = setInterval(() => {
-        getSessions().then(loadWeather).catch(() => {});
-      }, 180_000);
-    }).catch(console.error);
+      const loadFromSessions = (sessions: F1Session[]) => {
+        const upcoming = sessions.filter((s) => !s.is_cancelled);
+        setSessions(upcoming);
+        loadWeather(sessions);
+        interval = setInterval(() => {
+          getSessions().then((s) => s.length > 0 ? loadWeather(s) : loadWeather(all)).catch(() => {});
+        }, 180_000);
+      };
+
+      if (all.length > 0) {
+        loadFromSessions(all);
+      } else {
+        getFallbackSessions().then(loadFromSessions).catch(() => {});
+      }
+    }).catch(() => {});
 
     getDriverStandings().then((s) => setDrivers(s.slice(0, 5))).catch(console.error);
     getConstructorStandings().then((s) => setConstructors(s.slice(0, 5))).catch(console.error);
