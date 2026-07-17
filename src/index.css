@@ -227,8 +227,59 @@ body {
 
 /* ---- Responsive ---- */
 
+.hidden-mobile {
+  display: flex;
+}
+
+.mobile-only {
+  display: none !important;
+}
+
 @media (max-width: 640px) {
+  .hidden-mobile {
+    display: none !important;
+  }
+
+  .mobile-only {
+    display: flex !important;
+  }
+
   .weather-stats { gap: 10px !important; flex-wrap: wrap; }
   .weather-stats span { font-size: 11px !important; }
   .hero-title { font-size: 48px !important; }
+
+  .session-pill-layout {
+    flex-wrap: wrap;
+    gap: 10px !important;
+  }
+  .session-pill-layout > .session-info {
+    flex-basis: 100%;
+    order: 1;
+  }
+  .session-pill-layout > .session-badge {
+    order: 0;
+  }
+  .session-pill-layout > .session-countdown {
+    order: 2;
+  }
+  .session-pill-layout > .session-queue-btn {
+    order: 3;
+  }
+
+  .session-info-detail {
+    flex-wrap: wrap;
+    gap: 4px 8px !important;
+  }
+
+  .session-countdown .countdown-unit {
+    min-width: 24px !important;
+    padding: 3px 4px !important;
+  }
+  .session-countdown .countdown-unit > div:first-child {
+    font-size: 12px !important;
+  }
+}
+
+@media (max-width: 380px) {
+  .hero-title { font-size: 36px !important; }
 }

@@ -1,6 +1,8 @@
-import { useState } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Calendar, Eye, Film, Trophy, Flag, Timer, Zap } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Play, Calendar, Eye, Film, Flag, Timer, Zap, ArrowUpDown } from 'lucide-react';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+import PageWrapper from '../components/PageWrapper';
 
 interface HighlightVideo {
   id: string;
@@ -11,6 +13,7 @@ interface HighlightVideo {
 }
 
 type Tab = 'race' | 'sprint' | 'qualifying';
+type SortBy = 'recent' | 'views';
 
 const RACE_HIGHLIGHTS: HighlightVideo[] = [
   { id: 'rnjmSOUYVp8', title: 'Race Highlights | 2026 British Grand Prix', thumbnail: 'https://i.ytimg.com/vi/rnjmSOUYVp8/hqdefault.jpg', published: '2026-07-05', views: '5.4M' },
@@ -42,62 +45,105 @@ const QUALIFYING_HIGHLIGHTS: HighlightVideo[] = [
   { id: 'QztBs3IZBHk', title: 'Qualifying Highlights | 2026 Australian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/QztBs3IZBHk/hqdefault.jpg', published: '2026-03-17', views: '5.1M' },
 ];
 
-const TABS: { key: Tab; label: string; icon: React.ReactNode; data: HighlightVideo[] }[] = [
-  { key: 'race', label: 'Race', icon: <Flag size={14} />, data: RACE_HIGHLIGHTS },
-  { key: 'sprint', label: 'Sprint', icon: <Zap size={14} />, data: SPRINT_HIGHLIGHTS },
-  { key: 'qualifying', label: 'Qualifying', icon: <Timer size={14} />, data: QUALIFYING_HIGHLIGHTS },
+function parseViews(v: string): number {
+  const num = parseFloat(v);
+  if (v.endsWith('M')) return num * 1_000_000;
+  if (v.endsWith('K')) return num * 1_000;
+  return num;
+}
+
+const TABS: { key: Tab; label: string; icon: React.ReactNode; data: HighlightVideo[]; accent: string; accentBg: string }[] = [
+  { key: 'race', label: 'Race', icon: <Flag size={14} />, data: RACE_HIGHLIGHTS, accent: '#e10600', accentBg: 'rgba(225,6,0,0.15)' },
+  { key: 'sprint', label: 'Sprint', icon: <Zap size={14} />, data: SPRINT_HIGHLIGHTS, accent: '#facc15', accentBg: 'rgba(250,204,21,0.15)' },
+  { key: 'qualifying', label: 'Qualifying', icon: <Timer size={14} />, data: QUALIFYING_HIGHLIGHTS, accent: '#60a5fa', accentBg: 'rgba(96,165,250,0.15)' },
 ];
+
+const PAGE_SIZE = 6;
 
 export default function Highlights() {
   const [tab, setTab] = useState<Tab>('race');
-  const videos = TABS.find((t) => t.key === tab)!.data;
+  const [sortBy, setSortBy] = useState<SortBy>('recent');
+  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+
+  const currentTab = TABS.find((t) => t.key === tab)!;
+
+  const sortedVideos = useMemo(() => {
+    const videos = [...currentTab.data];
+    if (sortBy === 'views') {
+      videos.sort((a, b) => parseViews(b.views) - parseViews(a.views));
+    } else {
+      videos.sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime());
+    }
+    return videos;
+  }, [currentTab.data, sortBy]);
+
+  const visibleVideos = sortedVideos.slice(0, visibleCount);
+  const hasMore = visibleCount < sortedVideos.length;
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', maxWidth: 1100, margin: '0 auto' }} className="slide-down">
-        <Link to="/home" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: 4 }}>
-          <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', fontStyle: 'italic' }}>F1</span>
-          <span style={{ fontSize: 28, fontWeight: 900, color: '#e10600', fontStyle: 'italic' }}>TV</span>
-        </Link>
-        <div style={{ display: 'flex', gap: 6 }}>
-          <Link to="/home" className="glass nav-link" style={{ padding: '6px 12px', borderRadius: 8, color: '#a3a3a3', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <ArrowLeft size={13} /> Schedule
-          </Link>
-          <Link to="/standings" className="glass nav-link" style={{ padding: '6px 12px', borderRadius: 8, color: '#a3a3a3', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
-            <Trophy size={13} /> Standings
-          </Link>
-        </div>
-      </header>
+    <PageWrapper>
+      <Header />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }} className="fade-in-up">
           <Film size={24} color="#e10600" />
           <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Highlights</h1>
         </div>
-        <p style={{ fontSize: 13, color: '#525252', marginBottom: 20 }} className="fade-in-up">Official highlights from the FORMULA 1 YouTube channel</p>
+        <p style={{ fontSize: 13, color: '#737373', marginBottom: 20 }} className="fade-in-up">Official highlights from the FORMULA 1 YouTube channel</p>
 
         {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.03)', marginBottom: 24, maxWidth: 400 }} className="fade-in-up">
-          {TABS.map((t) => (
-            <button
-              key={t.key}
-              onClick={() => setTab(t.key)}
-              style={{
-                flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                border: 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                fontFamily: 'inherit',
-                background: tab === t.key ? 'rgba(225,6,0,0.15)' : 'transparent',
-                color: tab === t.key ? '#e10600' : '#737373',
-              }}
-            >
-              {t.icon} {t.label}
-            </button>
-          ))}
+        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.03)', marginBottom: 16, maxWidth: 420 }} className="fade-in-up">
+          {TABS.map((t) => {
+            const active = tab === t.key;
+            return (
+              <button
+                key={t.key}
+                onClick={() => { setTab(t.key); setVisibleCount(PAGE_SIZE); }}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
+                  border: 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  fontFamily: 'inherit',
+                  background: active ? t.accentBg : 'transparent',
+                  color: active ? t.accent : '#737373',
+                  boxShadow: active ? `inset 0 -2px 0 ${t.accent}` : 'none',
+                }}
+              >
+                {t.icon} {t.label}
+              </button>
+            );
+          })}
+        </div>
+
+        {/* Sort controls */}
+        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }} className="fade-in-up">
+          <span style={{ fontSize: 12, color: '#737373' }}>{sortedVideos.length} videos</span>
+          <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }}>
+            {([
+              { key: 'recent' as SortBy, label: 'Recent' },
+              { key: 'views' as SortBy, label: 'Most Viewed' },
+            ]).map((s) => (
+              <button
+                key={s.key}
+                onClick={() => setSortBy(s.key)}
+                style={{
+                  padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
+                  border: 'none', transition: 'all 0.15s', fontFamily: 'inherit',
+                  background: sortBy === s.key ? 'rgba(255,255,255,0.06)' : 'transparent',
+                  color: sortBy === s.key ? '#d4d4d4' : '#737373',
+                }}
+              >
+                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
+                  {s.key === 'views' && <ArrowUpDown size={10} />}
+                  {s.label}
+                </span>
+              </button>
+            ))}
+          </div>
         </div>
 
         {/* Grid */}
         <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {videos.map((video) => (
+          {visibleVideos.map((video) => (
             <a
               key={video.id}
               href={`https://www.youtube.com/watch?v=${video.id}`}
@@ -111,17 +157,29 @@ export default function Highlights() {
                   src={video.thumbnail}
                   alt={video.title}
                   style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
+                  loading="lazy"
                 />
                 <div style={{
                   position: 'absolute', inset: 0,
                   background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)',
                 }} />
+                {/* Corner type tag */}
+                <div style={{
+                  position: 'absolute', top: 8, left: 8,
+                  background: `${currentTab.accent}cc`, borderRadius: 4,
+                  padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#fff',
+                  textTransform: 'uppercase', letterSpacing: '0.05em',
+                  backdropFilter: 'blur(4px)',
+                }}>
+                  {currentTab.label}
+                </div>
                 <div style={{
                   position: 'absolute', top: '50%', left: '50%',
                   transform: 'translate(-50%, -50%)',
                   width: 56, height: 56, borderRadius: '50%',
-                  background: 'rgba(225,6,0,0.9)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: '0 0 30px rgba(225,6,0,0.4)',
+                  background: `${currentTab.accent}e6`, display: 'flex', alignItems: 'center', justifyContent: 'center',
+                  boxShadow: `0 0 30px ${currentTab.accent}66`,
+                  transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s',
                 }}>
                   <Play size={22} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
                 </div>
@@ -131,21 +189,43 @@ export default function Highlights() {
               </div>
               <div style={{ padding: '12px 14px' }}>
                 <h3 style={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.4, margin: 0 }}>{video.title}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 12, color: '#525252' }}>
+                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 12, color: '#737373' }}>
                   <Calendar size={11} /> {video.published}
                 </div>
               </div>
             </a>
           ))}
         </div>
+
+        {/* Load more */}
+        {hasMore && (
+          <div style={{ textAlign: 'center', marginTop: 24, marginBottom: 24 }} className="fade-in-up">
+            <button
+              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
+              className="glass"
+              style={{
+                padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600,
+                color: '#d4d4d4', cursor: 'pointer', fontFamily: 'inherit',
+                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
+                transition: 'all 0.2s',
+              }}
+              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
+              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
+            >
+              Load More ({sortedVideos.length - visibleCount} remaining)
+            </button>
+          </div>
+        )}
       </div>
 
-      <footer style={{ borderTop: '1px solid rgba(255,255,255,0.05)', padding: '32px 24px', textAlign: 'center', fontSize: 12, color: '#404040', marginTop: 48 }}>
-        Highlights from the official FORMULA 1 YouTube channel &mdash; Made by{' '}
-        <a href="https://github.com/Devajuice" target="_blank" rel="noopener noreferrer" style={{ color: '#e10600', textDecoration: 'none' }}>
-          Devajuice
-        </a>
-      </footer>
-    </div>
+      <div style={{ marginTop: 48 }}>
+        <Footer>
+          Highlights from the official FORMULA 1 YouTube channel &mdash; Made by{' '}
+          <a href="https://github.com/Devajuice" target="_blank" rel="noopener noreferrer" style={{ color: '#e10600', textDecoration: 'none' }}>
+            Devajuice
+          </a>
+        </Footer>
+      </div>
+    </PageWrapper>
   );
 }

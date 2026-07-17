@@ -1,8 +1,10 @@
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
-import { ArrowLeft, Trophy, Users, Car } from 'lucide-react';
+import { Trophy, Users, Car } from 'lucide-react';
 import { getDriverStandings, getConstructorStandings } from '../api/f1Api';
 import type { DriverStanding, ConstructorStanding } from '../api/f1Api';
+import Header from '../components/Header';
+import Footer from '../components/Footer';
+import PageWrapper from '../components/PageWrapper';
 
 type Tab = 'drivers' | 'constructors';
 
@@ -26,6 +28,8 @@ const DRIVER_TEAMS: Record<string, string> = {
   'Oliver Bearman': 'Haas',
 };
 
+const TEAM_ORDER = ['Red Bull', 'McLaren', 'Ferrari', 'Mercedes', 'Aston Martin', 'Alpine', 'Williams', 'RB', 'Kick Sauber', 'Haas'];
+
 export default function Standings() {
   const [tab, setTab] = useState<Tab>('drivers');
   const [drivers, setDrivers] = useState<DriverStanding[]>([]);
@@ -42,39 +46,46 @@ export default function Standings() {
   }, []);
 
   const data = tab === 'drivers' ? drivers : constructors;
-  const maxPts = Number(data[0]?.points) || 1;
+
+  const getTeamForItem = (item: DriverStanding | ConstructorStanding) => {
+    return tab === 'drivers' ? DRIVER_TEAMS[(item as DriverStanding).driverName] : (item as ConstructorStanding).constructorName;
+  };
+
+  const getNameForItem = (item: DriverStanding | ConstructorStanding) => {
+    return tab === 'drivers' ? (item as DriverStanding).driverName : (item as ConstructorStanding).constructorName;
+  };
+
+  const getKeyForItem = (item: DriverStanding | ConstructorStanding) => {
+    return tab === 'drivers' ? (item as DriverStanding).driverId : (item as ConstructorStanding).constructorId;
+  };
 
   return (
-    <div style={{ minHeight: '100vh', background: '#0a0a0a' }}>
-      {/* Header */}
-      <header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '12px 16px', maxWidth: 900, margin: '0 auto' }} className="slide-down">
-        <Link to="/home" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: 4 }}>
-          <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', fontStyle: 'italic' }}>F1</span>
-          <span style={{ fontSize: 28, fontWeight: 900, color: '#e10600', fontStyle: 'italic' }}>TV</span>
-        </Link>
-        <Link to="/home" className="glass" style={{ padding: '6px 12px', borderRadius: 8, color: '#a3a3a3', textDecoration: 'none', fontSize: 13, display: 'flex', alignItems: 'center', gap: 5 }}>
-          <ArrowLeft size={13} /> Home
-        </Link>
-      </header>
+    <PageWrapper>
+      <Header showBack backTo="/home" backLabel="Home" />
 
       {/* Tabs */}
       <div style={{ maxWidth: 900, margin: '24px auto 20px', padding: '0 16px' }} className="fade-in-up">
         <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><Trophy size={22} color="#e10600" /> Championship Standings</h1>
         <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.03)' }}>
-          {(['drivers', 'constructors'] as const).map((t) => (
-            <button
-              key={t}
-              onClick={() => setTab(t)}
-              style={{
-                flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                border: 'none', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                background: tab === t ? 'rgba(225,6,0,0.15)' : 'transparent',
-                color: tab === t ? '#e10600' : '#737373',
-              }}
-            >
-              {t === 'drivers' ? <><Users size={16} /> Drivers</> : <><Car size={16} /> Constructors</>}
-            </button>
-          ))}
+          {(['drivers', 'constructors'] as const).map((t) => {
+            const active = tab === t;
+            return (
+              <button
+                key={t}
+                onClick={() => setTab(t)}
+                style={{
+                  flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
+                  border: 'none', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
+                  fontFamily: 'inherit',
+                  background: active ? 'rgba(225,6,0,0.15)' : 'transparent',
+                  color: active ? '#e10600' : '#737373',
+                  boxShadow: active ? 'inset 0 -2px 0 #e10600' : 'none',
+                }}
+              >
+                {t === 'drivers' ? <><Users size={16} /> Drivers</> : <><Car size={16} /> Constructors</>}
+              </button>
+            );
+          })}
         </div>
       </div>
 
@@ -91,19 +102,6 @@ export default function Standings() {
               </div>
               <div className="skeleton skeleton-text" style={{ width: 40, height: 20 }} />
             </div>
-            {/* Bar chart skeleton */}
-            <div className="glass" style={{ borderRadius: 14, padding: 16, marginBottom: 16 }}>
-              <div className="skeleton skeleton-text" style={{ width: 100, height: 10, marginBottom: 14 }} />
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} style={{ marginBottom: 7 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                    <div className="skeleton skeleton-text" style={{ width: `${60 - i * 3}%`, height: 12 }} />
-                    <div className="skeleton skeleton-text" style={{ width: 24, height: 12 }} />
-                  </div>
-                  <div className="skeleton" style={{ height: 6, borderRadius: 3, width: `${100 - i * 8}%` }} />
-                </div>
-              ))}
-            </div>
             {/* Table skeleton */}
             <div className="glass" style={{ borderRadius: 14, padding: 16 }}>
               {Array.from({ length: 10 }).map((_, i) => (
@@ -116,7 +114,7 @@ export default function Standings() {
             </div>
           </div>
         ) : data.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 48, color: '#525252' }}>No standings data available</div>
+          <div style={{ textAlign: 'center', padding: 48, color: '#737373' }}>No standings data available</div>
         ) : (
           <>
             {/* Leader Card */}
@@ -132,13 +130,13 @@ export default function Standings() {
               </div>
               <div style={{ flex: 1, minWidth: 0 }}>
                 <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {tab === 'drivers' ? (data[0] as DriverStanding).driverName : (data[0] as ConstructorStanding).constructorName}
+                  {getNameForItem(data[0])}
                 </div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
                   {tab === 'drivers' && (
                     <span style={{
                       display: 'inline-block', width: 24, height: 3, borderRadius: 2,
-                      background: TEAM_COLORS[DRIVER_TEAMS[(data[0] as DriverStanding).driverName]] ?? '#525252',
+                      background: TEAM_COLORS[getTeamForItem(data[0]) ?? ''] ?? '#525252',
                     }} />
                   )}
                   <span style={{ fontSize: 12, color: '#737373' }}>Championship Leader</span>
@@ -147,81 +145,88 @@ export default function Standings() {
               <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', flexShrink: 0 }}>{data[0].points}</div>
             </div>
 
-            {/* Bar Chart */}
-            <div className="glass scale-in" style={{ borderRadius: 14, padding: 16, marginBottom: 16, animationDelay: '0.1s' }}>
-              <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#525252', marginBottom: 14 }}>
-                {tab === 'drivers' ? 'Driver' : 'Constructor'} Standings
-              </h3>
-              {data.slice(0, 10).map((item, i) => {
-                const pct = (Number(item.points) / maxPts) * 100;
-                const team = tab === 'drivers' ? DRIVER_TEAMS[(item as DriverStanding).driverName] : (item as ConstructorStanding).constructorName;
-                const color = TEAM_COLORS[team ?? ''] ?? '#737373';
-                const name = tab === 'drivers' ? (item as DriverStanding).driverName : (item as ConstructorStanding).constructorName;
-                return (
-                  <div key={tab === 'drivers' ? (item as DriverStanding).driverId : (item as ConstructorStanding).constructorId} style={{ marginBottom: 7 }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', marginBottom: 2 }}>
-                      <span style={{ fontSize: 12, fontWeight: 600, color: '#d4d4d4' }}>{item.positionText}. {name}</span>
-                      <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{item.points}</span>
+            {/* Standings List */}
+            <div className="glass scale-in" style={{ borderRadius: 14, overflow: 'hidden', animationDelay: '0.1s' }}>
+              <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
+                {/* Header */}
+                <div className="hidden-mobile" style={{
+                  display: 'flex', alignItems: 'center', padding: '10px 14px',
+                  background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(12px)',
+                  position: 'sticky', top: 0, zIndex: 2,
+                  borderBottom: '1px solid rgba(255,255,255,0.06)',
+                }}>
+                  <span style={{ ...thStyle, width: 40, minWidth: 40 }}>Pos</span>
+                  <span style={{ ...thStyle, flex: 1, textAlign: 'left' }}>{tab === 'drivers' ? 'Driver' : 'Constructor'}</span>
+                  <span style={{ ...thStyle, textAlign: 'right', width: 60, minWidth: 60 }}>Pts</span>
+                  <span style={{ ...thStyle, textAlign: 'right', width: 80, minWidth: 80 }}>Gap</span>
+                </div>
+                {/* Rows */}
+                {data.map((item, i) => {
+                  const team = getTeamForItem(item);
+                  const color = TEAM_COLORS[team ?? ''] ?? '#737373';
+                  const name = getNameForItem(item);
+                  const pts = Number(item.points);
+                  const leaderPts = Number(data[0].points) || 1;
+                  const pct = (pts / leaderPts) * 100;
+                  const gap = i === 0 ? 'Leader' : `-${Number(data[0].points) - pts}`;
+                  return (
+                    <div key={getKeyForItem(item)} style={{
+                      padding: '10px 14px',
+                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
+                      borderBottom: '1px solid rgba(255,255,255,0.02)',
+                    }}>
+                      {/* Top line: pos + name ... points */}
+                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 40, minWidth: 40, flexShrink: 0 }}>
+                          <span style={{
+                            display: 'inline-block', width: 3, height: 18, borderRadius: 2,
+                            background: i === 0 ? '#facc15' : color,
+                            opacity: i < 3 ? 1 : 0.4,
+                          }} />
+                          <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#facc15' : '#737373' }}>{item.positionText}</span>
+                        </div>
+                        <span style={{ flex: 1, color: '#d4d4d4', fontWeight: 600, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
+                        <span style={{ fontWeight: 700, color: '#fff', fontSize: 14, flexShrink: 0, width: 60, minWidth: 60, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{item.points}</span>
+                        <div className="hidden-mobile" style={{ width: 80, minWidth: 80, flexShrink: 0 }} />
+                      </div>
+                      {/* Bottom line: bar ... gap */}
+                      <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', marginTop: 5, paddingLeft: 46 }}>
+                        <div style={{ height: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 2, overflow: 'hidden', width: 200, flexShrink: 0 }}>
+                          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 2, background: i === 0 ? color : `${color}88` }} className="bar-animate" />
+                        </div>
+                        <div style={{ flex: 1 }} />
+                        <span style={{ fontSize: 12, color: i === 0 ? '#facc15' : '#737373', width: 80, minWidth: 80, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{gap}</span>
+                      </div>
                     </div>
-                    <div style={{ height: 6, background: 'rgba(255,255,255,0.04)', borderRadius: 3, overflow: 'hidden' }}>
-                      <div style={{ height: '100%', width: `${pct}%`, borderRadius: 3, background: i === 0 ? color : `${color}88` }} className="bar-animate" />
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-
-            {/* Full Table */}
-            <div className="glass scale-in" style={{ borderRadius: 14, overflow: 'hidden', animationDelay: '0.2s' }}>
-              <div style={{ overflowX: 'auto' }}>
-                <table style={{ width: '100%', borderCollapse: 'collapse', minWidth: 360 }}>
-                  <thead>
-                    <tr style={{ background: 'rgba(255,255,255,0.02)' }}>
-                      <th style={thStyle}>Pos</th>
-                      <th style={{ ...thStyle, textAlign: 'left' }}>{tab === 'drivers' ? 'Driver' : 'Constructor'}</th>
-                      <th style={{ ...thStyle, textAlign: 'right' }}>Points</th>
-                    </tr>
-                  </thead>
-                  <tbody>
-                    {data.map((item, i) => {
-                      const team = tab === 'drivers' ? DRIVER_TEAMS[(item as DriverStanding).driverName] : (item as ConstructorStanding).constructorName;
-                      const color = TEAM_COLORS[team ?? ''] ?? '#737373';
-                      const name = tab === 'drivers' ? (item as DriverStanding).driverName : (item as ConstructorStanding).constructorName;
-                      return (
-                        <tr key={tab === 'drivers' ? (item as DriverStanding).driverId : (item as ConstructorStanding).constructorId} style={{
-                          background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
-                        }}>
-                          <td style={tdStyle}>
-                            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                              <span style={{
-                                display: 'inline-block', width: 3, height: 18, borderRadius: 2,
-                                background: i === 0 ? '#facc15' : color,
-                                opacity: i < 3 ? 1 : 0.4,
-                              }} />
-                              <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#facc15' : '#737373' }}>{item.positionText}</span>
-                            </div>
-                          </td>
-                          <td style={{ ...tdStyle, textAlign: 'left' }}>{name}</td>
-                          <td style={{ ...tdStyle, textAlign: 'right', fontWeight: 700, color: '#fff' }}>{item.points}</td>
-                        </tr>
-                      );
-                    })}
-                  </tbody>
-                </table>
+                  );
+                })}
               </div>
             </div>
+
+            {/* Team Color Legend (drivers only) */}
+            {tab === 'drivers' && (
+              <div className="glass scale-in" style={{ borderRadius: 12, padding: 14, marginTop: 16, animationDelay: '0.2s' }}>
+                <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#737373', marginBottom: 10 }}>Team Colors</h3>
+                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
+                  {TEAM_ORDER.map((team) => (
+                    <div key={team} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
+                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: TEAM_COLORS[team] }} />
+                      <span style={{ fontSize: 11, color: '#a3a3a3' }}>{team}</span>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
           </>
         )}
       </div>
-    </div>
+
+      <Footer />
+    </PageWrapper>
   );
 }
 
 const thStyle: React.CSSProperties = {
-  padding: '8px 12px', fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.1em', color: '#525252', borderBottom: '1px solid rgba(255,255,255,0.04)',
-};
-const tdStyle: React.CSSProperties = {
-  padding: '8px 12px', fontSize: 13, fontWeight: 500, color: '#a3a3a3',
-  borderBottom: '1px solid rgba(255,255,255,0.02)',
+  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
+  letterSpacing: '0.1em', color: '#737373',
 };
