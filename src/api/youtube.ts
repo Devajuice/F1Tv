@@ -64,7 +64,7 @@ export async function fetchAllHighlights(): Promise<Record<HighlightType, Youtub
 
     for (const v of data.videos || []) {
       if (EXCLUDE.test(v.title)) continue;
-      if (!v.published.startsWith(String(CURRENT_YEAR))) continue;
+      if (!v.published.startsWith(String(CURRENT_YEAR)) && !v.title.includes(String(CURRENT_YEAR))) continue;
       for (const type of ['race', 'sprint', 'qualifying'] as HighlightType[]) {
         if (TITLE_PATTERNS[type].test(v.title)) {
           result[type].push(v);
