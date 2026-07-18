@@ -9,9 +9,9 @@ export interface YoutubeVideo {
 export type HighlightType = 'race' | 'sprint' | 'qualifying';
 
 const TITLE_PATTERNS: Record<HighlightType, RegExp> = {
-  race: /^Race Highlights \| \d{4} .* Grand Prix$/i,
-  sprint: /^Sprint Highlights \| \d{4} .* Grand Prix$/i,
-  qualifying: /^Qualifying Highlights \| \d{4} .* Grand Prix$/i,
+  race: /Race Highlights.*\d{4}.*Grand Prix/i,
+  sprint: /Sprint Highlights.*\d{4}.*Grand Prix/i,
+  qualifying: /Qualifying Highlights.*\d{4}.*Grand Prix/i,
 };
 
 const TAB_QUERIES: Record<HighlightType, string> = {
