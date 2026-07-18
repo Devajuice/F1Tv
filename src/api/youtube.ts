@@ -9,15 +9,15 @@ export interface YoutubeVideo {
 export type HighlightType = 'race' | 'sprint' | 'qualifying';
 
 const TITLE_PATTERNS: Record<HighlightType, RegExp> = {
-  race: /Race Highlights.*\d{4}.*Grand Prix/i,
-  sprint: /Sprint Highlights.*\d{4}.*Grand Prix/i,
-  qualifying: /Qualifying Highlights.*\d{4}.*Grand Prix/i,
+  race: /Race Highlights/i,
+  sprint: /Sprint Highlights/i,
+  qualifying: /Qualifying Highlights/i,
 };
 
 const SEARCH_QUERIES: Record<HighlightType, string> = {
-  race: 'FORMULA 1 Race Highlights Grand Prix',
-  sprint: 'FORMULA 1 Sprint Highlights Grand Prix',
-  qualifying: 'FORMULA 1 Qualifying Highlights Grand Prix',
+  race: 'highlights',
+  sprint: 'sprint highlights',
+  qualifying: 'qualifying highlights',
 };
 
 const EXCLUDE = /F2|F3|Formula 2|Formula 3/i;
@@ -51,7 +51,7 @@ async function fetchType(type: HighlightType): Promise<YoutubeVideo[]> {
   const results: YoutubeVideo[] = [];
   let pageToken = '';
 
-  for (let i = 0; i < 3; i++) {
+  for (let i = 0; i < 5; i++) {
     const params = new URLSearchParams({
       q: SEARCH_QUERIES[type],
       maxResults: '50',
