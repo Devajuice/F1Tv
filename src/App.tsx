@@ -4,6 +4,8 @@ import Home from './pages/Home';
 import Stream from './pages/Stream';
 import Standings from './pages/Standings';
 import Highlights from './pages/Highlights';
+import RaceCalendar from './pages/RaceCalendar';
+import RaceResults from './pages/RaceResults';
 import NotFound from './pages/NotFound';
 
 function AnimatedRoutes() {
@@ -17,6 +19,8 @@ function AnimatedRoutes() {
         <Route path="/stream" element={<Stream />} />
         <Route path="/standings" element={<Standings />} />
         <Route path="/highlights" element={<Highlights />} />
+        <Route path="/calendar" element={<RaceCalendar />} />
+        <Route path="/results" element={<RaceResults />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>

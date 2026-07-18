@@ -357,8 +357,131 @@ export function getSessionLabel(_type: string, name: string): string {
   return _type;
 }
 
+// --- Live Timing: Positions ---
+export interface PositionEntry {
+  driver_number: number;
+  position: number;
+  date: string;
+}
+
+export async function getPositions(sessionKey: number): Promise<Map<number, number>> {
+  const res = await fetchWithRetry(`${OPENF1_BASE}/position?session_key=${sessionKey}`);
+  if (!res.ok) return new Map();
+  const data: PositionEntry[] = await res.json();
+  const map = new Map<number, number>();
+  for (const entry of data) {
+    map.set(entry.driver_number, entry.position);
+  }
+  return map;
+}
+
+// --- Live Timing: Intervals ---
+export interface IntervalEntry {
+  driver_number: number;
+  gap_to_leader: string | number | null;
+  interval: string | number | null;
+}
+
+export async function getIntervals(sessionKey: number): Promise<Map<number, { gap: string | number | null; interval: string | number | null }>> {
+  const res = await fetchWithRetry(`${OPENF1_BASE}/intervals?session_key=${sessionKey}`);
+  if (!res.ok) return new Map();
+  const data: IntervalEntry[] = await res.json();
+  const map = new Map<number, { gap: string | number | null; interval: string | number | null }>();
+  for (const entry of data) {
+    map.set(entry.driver_number, { gap: entry.gap_to_leader, interval: entry.interval });
+  }
+  return map;
+}
+
+// --- Live Timing: Drivers ---
+export interface DriverInfo {
+  driver_number: number;
+  name_acronym: string;
+  full_name: string;
+  team_name: string;
+  team_colour: string;
+  headshot_url?: string;
+}
+
+export async function getDrivers(sessionKey: number): Promise<Map<number, DriverInfo>> {
+  const key = `drivers-${sessionKey}`;
+  const cached = getCached<Map<number, DriverInfo>>(key);
+  if (cached) return cached;
+
+  const res = await fetchWithRetry(`${OPENF1_BASE}/drivers?session_key=${sessionKey}`);
+  if (!res.ok) return new Map();
+  const data: DriverInfo[] = await res.json();
+  const map = new Map<number, DriverInfo>();
+  for (const d of data) {
+    map.set(d.driver_number, d);
+  }
+  setCache(key, map);
+  return map;
+}
+
+// --- Live Timing: Car Data ---
+export interface CarDataEntry {
+  driver_number: number;
+  speed: number;
+  throttle: number;
+  brake: number;
+  n_gear: number;
+  drs: number;
+}
+
+export async function getCarData(sessionKey: number): Promise<Map<number, CarDataEntry>> {
+  const res = await fetchWithRetry(`${OPENF1_BASE}/car_data?session_key=${sessionKey}`);
+  if (!res.ok) return new Map();
+  const data: CarDataEntry[] = await res.json();
+  const map = new Map<number, CarDataEntry>();
+  for (const entry of data) {
+    map.set(entry.driver_number, entry);
+  }
+  return map;
+}
+
+// --- Track Map: Location ---
+export interface LocationEntry {
+  driver_number: number;
+  x: number;
+  y: number;
+  z: number;
+  date: string;
+}
+
+export async function getLocationData(sessionKey: number): Promise<Map<number, { x: number; y: number }>> {
+  const res = await fetchWithRetry(`${OPENF1_BASE}/location?session_key=${sessionKey}`);
+  if (!res.ok) return new Map();
+  const data: LocationEntry[] = await res.json();
+  const map = new Map<number, { x: number; y: number }>();
+  for (const entry of data) {
+    map.set(entry.driver_number, { x: entry.x, y: entry.y });
+  }
+  return map;
+}
+
+// --- Fastest Laps ---
+export interface LapEntry {
+  driver_number: number;
+  lap_number: number;
+  lap_duration: number | null;
+  duration_sector_1: number | null;
+  duration_sector_2: number | null;
+  duration_sector_3: number | null;
+  st_speed: number | null;
+  is_pit_out_lap: boolean;
+}
+
+export async function getLaps(sessionKey: number): Promise<LapEntry[]> {
+  const res = await fetchWithRetry(`${OPENF1_BASE}/laps?session_key=${sessionKey}`);
+  if (!res.ok) return [];
+  const data: LapEntry[] = await res.json();
+  return data.filter((l) => l.lap_duration !== null && !l.is_pit_out_lap);
+}
+
 export function getTrackImageUrl(circuitShortName: string): string {
   const nameMap: Record<string, string> = {
+    // OpenF1 circuit_short_name values
     'Sakhir': 'Bahrain', 'Melbourne': 'Australia', 'Shanghai': 'China',
     'Suzuka': 'Japan', 'Miami Gardens': 'Miami', 'Imola': 'Emilia%20Romagna',
     'Monte Carlo': 'Monaco', 'Catalunya': 'Spain', 'Montreal': 'Canada',
@@ -368,7 +491,12 @@ export function getTrackImageUrl(circuitShortName: string): string {
     'Marina%20Bay': 'Singapore', 'Singapore': 'Singapore', 'Austin': 'USA',
     'Mexico City': 'Mexico', 'Interlagos': 'Brazil', 'Las%20Vegas': 'Las%20Vegas',
     'Lusail': 'Qatar', 'Yas Marina Circuit': 'Abu%20Dhabi', 'Yas Island': 'Abu%20Dhabi',
+    // Jolpica/Ergast locality values
+    'São Paulo': 'Brazil', 'Sao Paulo': 'Brazil', 'Barcelona': 'Spain',
+    'Madrid': 'Spain', 'Spa': 'Belgium', 'Great Britain': 'Great%20Britain',
+    'USA': 'USA', 'Marina Bay': 'Singapore', 'Abu Dhabi': 'Abu%20Dhabi',
+    'Las Vegas': 'Las%20Vegas',
   };
   const mapped = nameMap[circuitShortName] ?? circuitShortName;
-  return `https://media.formula1.com/image/upload/f_auto/q_auto/v16772449xx/Digital%20assets%20-%202023/${mapped}%20carbon.png`;
+  return `https://www.formula1.com/content/dam/fom-website/2018-redesign-assets/Track%20icons%204x3/${mapped}%20carbon.png`;
 }

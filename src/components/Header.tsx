@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, Trophy, ArrowLeft, Play, Menu, X } from 'lucide-react';
+import { Film, Trophy, ArrowLeft, Play, Menu, X, Calendar, Flag } from 'lucide-react';
 import { useState } from 'react';
 
 interface NavLink {
@@ -23,6 +23,8 @@ export default function Header({ links, showBack, backTo = '/home', backLabel = 
     { to: '/stream', label: 'Watch', icon: <Play size={13} fill="currentColor" /> },
     { to: '/highlights', label: 'Highlights', icon: <Film size={13} /> },
     { to: '/standings', label: 'Standings', icon: <Trophy size={13} /> },
+    { to: '/calendar', label: 'Calendar', icon: <Calendar size={13} /> },
+    { to: '/results', label: 'Results', icon: <Flag size={13} /> },
   ];
 
   const navLinks = links ?? defaultLinks;
