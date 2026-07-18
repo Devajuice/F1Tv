@@ -37,17 +37,10 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 
 ## APIs Used
 
-- [OpenF1](https://openf1.org/) — Session schedules and live weather data (requires API key, proxied via Vercel serverless function)
+- [OpenF1](https://openf1.org/) — Session schedules and live weather data
 - [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, qualifying results, grid lineup, practice schedules, and driver profiles
 - [RSS2JSON](https://api.rss2json.com/) — RSS-to-JSON proxy for F1 news feeds
 - [YouTube](https://www.youtube.com/@Formula1) — Race, sprint, and qualifying highlights (curated video IDs)
-
-## Environment Variables
-
-| Variable | Required | Description |
-|----------|----------|-------------|
-| `OPENF1_API_KEY` | Yes | API key for OpenF1 (used by Vercel serverless proxy) |
-| `VITE_OPENF1_API_KEY` | No | API key for OpenF1 (used by Vite dev proxy) |
 
 ## Getting Started
 
@@ -68,9 +61,6 @@ npm run lint
 ## Project Structure
 
 ```
-├── api/
-│   └── openf1/
-│       └── [...path].js    # Vercel serverless proxy for OpenF1 API (adds auth header)
 src/
 ├── api/
 │   ├── openf1.ts        # Session schedules and weather data
