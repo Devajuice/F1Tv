@@ -17,7 +17,7 @@ const TITLE_PATTERNS: Record<HighlightType, RegExp> = {
 const EXCLUDE = /F2|F3|Formula 2|Formula 3/i;
 const CURRENT_YEAR = new Date().getFullYear();
 const CACHE_KEY = 'f1_highlights_cache';
-const CACHE_TTL = 30 * 60 * 1000;
+const CACHE_TTL = 15 * 60 * 1000;
 const MIN_PER_TYPE = 8;
 
 interface CacheEntry {
