@@ -82,7 +82,7 @@ export default function Highlights() {
 
   return (
     <PageWrapper>
-      <Header />
+      <Header showBack backTo="/home" backLabel="Home" />
 
       <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px' }}>
         <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }} className="fade-in-up">

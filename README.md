@@ -13,7 +13,7 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 - **Race Results** — Dropdown race selector with finishing order, position changes, team colors, and status
 - **Qualifying Results** — Q1/Q2/Q3 breakdown with phase filter and race selector (auto-refreshes every 30s)
 - **Starting Grid** — Qualifying-based grid lineup with real track formation (staggered on desktop, single-column on mobile), auto-refreshes every 30s
-- **Session Schedule** — Practice, qualifying, sprint, and race times displayed in your local timezone
+- **Session Schedule** — Practice, qualifying, sprint, and race times displayed in your local timezone (includes race session)
 - **Championship Standings** — Driver and constructor standings with leader card, bar chart, and full table
 - **Driver Profiles** — Grid of all drivers with expandable detail cards (team, nationality, age, stats, Wikipedia)
 - **Highlights** — Race, Sprint, and Qualifying highlights from the official F1 YouTube channel
@@ -37,10 +37,17 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 
 ## APIs Used
 
-- [OpenF1](https://openf1.org/) — Session schedules and live weather data
+- [OpenF1](https://openf1.org/) — Session schedules and live weather data (requires API key, proxied via Vercel serverless function)
 - [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, qualifying results, grid lineup, practice schedules, and driver profiles
 - [RSS2JSON](https://api.rss2json.com/) — RSS-to-JSON proxy for F1 news feeds
 - [YouTube](https://www.youtube.com/@Formula1) — Race, sprint, and qualifying highlights (curated video IDs)
+
+## Environment Variables
+
+| Variable | Required | Description |
+|----------|----------|-------------|
+| `OPENF1_API_KEY` | Yes | API key for OpenF1 (used by Vercel serverless proxy) |
+| `VITE_OPENF1_API_KEY` | No | API key for OpenF1 (used by Vite dev proxy) |
 
 ## Getting Started
 
@@ -61,6 +68,9 @@ npm run lint
 ## Project Structure
 
 ```
+├── api/
+│   └── openf1/
+│       └── [...path].js    # Vercel serverless proxy for OpenF1 API (adds auth header)
 src/
 ├── api/
 │   ├── openf1.ts        # Session schedules and weather data

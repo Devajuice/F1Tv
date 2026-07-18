@@ -71,6 +71,8 @@ export interface Race {
   locality: string;
   date: string;
   time?: string;
+  qualifyingDate?: string;
+  qualifyingTime?: string;
   results?: RaceResult[];
   sprintResults?: RaceResult[];
 }
@@ -86,6 +88,7 @@ interface ErgastRace {
   };
   date: string;
   time?: string;
+  Qualifying?: { date: string; time?: string };
   Results?: Array<{
     position: string;
     positionText: string;
@@ -137,6 +140,8 @@ function transformRace(race: ErgastRace): Race {
     locality: race.Circuit.Location.locality,
     date: race.date,
     time: race.time,
+    qualifyingDate: race.Qualifying?.date,
+    qualifyingTime: race.Qualifying?.time,
     results: race.Results?.map(transformResult),
     sprintResults: race.SprintResults?.map(transformResult),
   };
@@ -274,6 +279,7 @@ export async function getPracticeSchedule(season: string, round: string): Promis
   if (race.SprintQualifying) sessions.push({ name: 'Sprint Qualifying', date: race.SprintQualifying.date, time: race.SprintQualifying.time ?? '' });
   if (race.Sprint) sessions.push({ name: 'Sprint', date: race.Sprint.date, time: race.Sprint.time ?? '' });
   if (race.Qualifying) sessions.push({ name: 'Qualifying', date: race.Qualifying.date, time: race.Qualifying.time ?? '' });
+  sessions.push({ name: 'Race', date: race.date, time: race.time ?? '' });
   return sessions;
 }
 

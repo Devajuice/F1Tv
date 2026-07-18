@@ -27,6 +27,7 @@ function getSessionColor(name: string): string {
   if (name === 'Sprint Qualifying') return '#eab308';
   if (name === 'Sprint') return '#a855f7';
   if (name === 'Qualifying') return '#f87171';
+  if (name === 'Race') return '#e10600';
   return '#737373';
 }
 

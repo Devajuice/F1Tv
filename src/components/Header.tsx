@@ -48,6 +48,10 @@ export default function Header({ links, showBack, backTo = '/home', backLabel = 
   const location = useLocation();
   const liveSession = useLiveSession();
 
+  useEffect(() => {
+    setMobileOpen(false);
+  }, [location.pathname]);
+
   const defaultLinks: NavLink[] = [
     { to: '/highlights', label: 'Highlights', icon: <Film size={13} /> },
     { to: '/standings', label: 'Standings', icon: <Trophy size={13} /> },
@@ -121,48 +125,55 @@ export default function Header({ links, showBack, backTo = '/home', backLabel = 
 
       {/* Mobile dropdown */}
       {mobileOpen && (
-        <div className="slide-in-down" style={{
-          position: 'absolute', top: '100%', left: 16, right: 16, zIndex: 50,
-          background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(20px)',
-          border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 8,
-          display: 'flex', flexDirection: 'column', gap: 4,
-        }}>
-          {liveSession && (
-            <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
-              <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
-              LIVE: {liveSession.session_name}
-            </div>
-          )}
-          {showBack ? (
-            <Link
-              to={backTo}
-              onClick={() => setMobileOpen(false)}
-              className="nav-link"
-              style={{ padding: '10px 12px', borderRadius: 8, color: '#a3a3a3', textDecoration: 'none', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
-            >
-              <ArrowLeft size={14} /> {backLabel}
-            </Link>
-          ) : (
-            navLinks.map((link) => {
-              const active = isActive(link.to);
-              return (
-                <Link
-                  key={link.to}
-                  to={link.to}
-                  onClick={() => setMobileOpen(false)}
-                  className="nav-link"
-                  style={{
-                    padding: '10px 12px', borderRadius: 8, textDecoration: 'none', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8,
-                    color: active ? '#e10600' : '#a3a3a3',
-                    background: active ? 'rgba(225,6,0,0.1)' : undefined,
-                  }}
-                >
-                  {link.icon} {link.label}
-                </Link>
-              );
-            })
-          )}
-        </div>
+        <>
+          <div
+            className="mobile-only"
+            style={{ position: 'fixed', inset: 0, zIndex: 49 }}
+            onClick={() => setMobileOpen(false)}
+          />
+          <div className="slide-in-down" style={{
+            position: 'fixed', top: 56, left: 16, right: 16, zIndex: 50,
+            background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(20px)',
+            border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 8,
+            display: 'flex', flexDirection: 'column', gap: 4,
+          }}>
+            {liveSession && (
+              <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+                <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+                LIVE: {liveSession.session_name}
+              </div>
+            )}
+            {showBack ? (
+              <Link
+                to={backTo}
+                onClick={() => setMobileOpen(false)}
+                className="nav-link"
+                style={{ padding: '10px 12px', borderRadius: 8, color: '#a3a3a3', textDecoration: 'none', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8 }}
+              >
+                <ArrowLeft size={14} /> {backLabel}
+              </Link>
+            ) : (
+              navLinks.map((link) => {
+                const active = isActive(link.to);
+                return (
+                  <Link
+                    key={link.to}
+                    to={link.to}
+                    onClick={() => setMobileOpen(false)}
+                    className="nav-link"
+                    style={{
+                      padding: '10px 12px', borderRadius: 8, textDecoration: 'none', fontSize: 13, fontWeight: 500, display: 'flex', alignItems: 'center', gap: 8,
+                      color: active ? '#e10600' : '#a3a3a3',
+                      background: active ? 'rgba(225,6,0,0.1)' : undefined,
+                    }}
+                  >
+                    {link.icon} {link.label}
+                  </Link>
+                );
+              })
+            )}
+          </div>
+        </>
       )}
     </header>
   );

@@ -44,8 +44,10 @@ export default function QualifyingResults() {
     getSchedule()
       .then((all) => {
         const completed = all.filter((r) => {
-          const raceDate = new Date(r.date + (r.time ? `T${r.time}` : 'T14:00:00Z'));
-          return raceDate < new Date();
+          const refDate = r.qualifyingDate
+            ? new Date(r.qualifyingDate + (r.qualifyingTime ? `T${r.qualifyingTime}` : 'T14:00:00Z'))
+            : new Date(r.date + (r.time ? `T${r.time}` : 'T14:00:00Z'));
+          return refDate < new Date();
         });
         setRaces(completed);
         if (completed.length > 0) setSelectedRound(completed[completed.length - 1].round);
