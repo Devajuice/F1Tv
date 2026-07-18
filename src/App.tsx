@@ -6,6 +6,7 @@ import Standings from './pages/Standings';
 import Highlights from './pages/Highlights';
 import RaceCalendar from './pages/RaceCalendar';
 import RaceResults from './pages/RaceResults';
+import News from './pages/News';
 import NotFound from './pages/NotFound';
 
 function AnimatedRoutes() {
@@ -21,6 +22,7 @@ function AnimatedRoutes() {
         <Route path="/highlights" element={<Highlights />} />
         <Route path="/calendar" element={<RaceCalendar />} />
         <Route path="/results" element={<RaceResults />} />
+        <Route path="/news" element={<News />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
