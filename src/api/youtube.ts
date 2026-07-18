@@ -25,5 +25,5 @@ export async function fetchHighlights(type: HighlightType): Promise<YoutubeVideo
   if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
   const data = await res.json();
   const pattern = TITLE_PATTERNS[type];
-  return (data.videos || []).filter((v: YoutubeVideo) => pattern.test(v.title));
+  return (data.videos || []).filter((v: YoutubeVideo) => pattern.test(v.title) && !/F2|F3|Formula 2|Formula 3/i.test(v.title));
 }
