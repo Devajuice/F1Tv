@@ -14,12 +14,6 @@ const TITLE_PATTERNS: Record<HighlightType, RegExp> = {
   qualifying: /Qualifying Highlights/i,
 };
 
-const SEARCH_QUERIES: Record<HighlightType, string> = {
-  race: 'highlights',
-  sprint: 'sprint highlights',
-  qualifying: 'qualifying highlights',
-};
-
 const EXCLUDE = /F2|F3|Formula 2|Formula 3/i;
 const CACHE_KEY = 'f1_highlights_cache';
 const CACHE_TTL = 30 * 60 * 1000;
@@ -47,45 +41,43 @@ function setCache(data: Record<HighlightType, YoutubeVideo[]>) {
   } catch {}
 }
 
-async function fetchType(type: HighlightType): Promise<YoutubeVideo[]> {
-  const results: YoutubeVideo[] = [];
-  let pageToken = '';
-
-  for (let i = 0; i < 5; i++) {
-    const params = new URLSearchParams({
-      q: SEARCH_QUERIES[type],
-      maxResults: '50',
-    });
-    if (pageToken) params.set('pageToken', pageToken);
-
-    const res = await fetch(`/api/youtube?${params}`);
-    if (!res.ok) break;
-    const data = await res.json();
-
-    for (const v of data.videos || []) {
-      if (!EXCLUDE.test(v.title) && TITLE_PATTERNS[type].test(v.title)) {
-        results.push(v);
-      }
-    }
-
-    pageToken = data.nextPageToken;
-    if (!pageToken) break;
-  }
-
-  return results;
+async function fetchPage(pageToken: string): Promise<{ videos: YoutubeVideo[]; nextPageToken: string | null }> {
+  const params = new URLSearchParams({ maxResults: '50' });
+  if (pageToken) params.set('pageToken', pageToken);
+  const res = await fetch(`/api/youtube?${params}`);
+  if (!res.ok) return { videos: [], nextPageToken: null };
+  const data = await res.json();
+  return {
+    videos: data.videos || [],
+    nextPageToken: data.nextPageToken || null,
+  };
 }
 
 export async function fetchAllHighlights(): Promise<Record<HighlightType, YoutubeVideo[]>> {
   const cached = getCached();
   if (cached) return cached.data;
 
-  const [race, sprint, qualifying] = await Promise.all([
-    fetchType('race'),
-    fetchType('sprint'),
-    fetchType('qualifying'),
-  ]);
+  const result: Record<HighlightType, YoutubeVideo[]> = {
+    race: [],
+    sprint: [],
+    qualifying: [],
+  };
 
-  const result = { race, sprint, qualifying };
+  let pageToken = '';
+  for (let i = 0; i < 15; i++) {
+    const page = await fetchPage(pageToken);
+    for (const v of page.videos) {
+      if (EXCLUDE.test(v.title)) continue;
+      for (const type of ['race', 'sprint', 'qualifying'] as HighlightType[]) {
+        if (TITLE_PATTERNS[type].test(v.title)) {
+          result[type].push(v);
+        }
+      }
+    }
+    pageToken = page.nextPageToken;
+    if (!pageToken) break;
+  }
+
   setCache(result);
   return result;
 }
