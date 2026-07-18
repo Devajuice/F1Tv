@@ -3,7 +3,7 @@ import { Play, Calendar, Eye, Film, Flag, Timer, Zap, ArrowUpDown } from 'lucide
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PageWrapper from '../components/PageWrapper';
-import { fetchHighlights, type HighlightType, type YoutubeVideo } from '../api/youtube';
+import { fetchAllHighlights, type HighlightType, type YoutubeVideo } from '../api/youtube';
 
 type Tab = HighlightType;
 type SortBy = 'recent' | 'views';
@@ -66,16 +66,15 @@ export default function Highlights() {
   });
 
   useEffect(() => {
-    const tabs: Tab[] = ['race', 'sprint', 'qualifying'];
-    tabs.forEach((t) => {
-      fetchHighlights(t)
-        .then((videos) => {
-          if (videos.length > 0) {
-            setLiveData((prev) => ({ ...prev, [t]: videos }));
-          }
-        })
-        .catch(() => {});
-    });
+    fetchAllHighlights()
+      .then((data) => {
+        setLiveData((prev) => ({
+          race: data.race.length > 0 ? data.race : prev.race,
+          sprint: data.sprint.length > 0 ? data.sprint : prev.sprint,
+          qualifying: data.qualifying.length > 0 ? data.qualifying : prev.qualifying,
+        }));
+      })
+      .catch(() => {});
   }, []);
 
   const currentTab = TABS.find((t) => t.key === tab)!;
