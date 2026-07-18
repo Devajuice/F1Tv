@@ -4,29 +4,28 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'YOUTUBE_API_KEY not configured' });
   }
 
-  const { q = '', maxResults = '50', pageToken = '' } = req.query;
-  const channelId = 'UCB_qr75-ydFVKSF9Dmo6izg';
+  const { pageToken = '' } = req.query;
+  const playlistId = 'UUB_qr75-ydFVKSF9Dmo6izg';
 
-  const searchParams = new URLSearchParams({
+  const params = new URLSearchParams({
     part: 'snippet',
-    channelId,
-    type: 'video',
-    order: 'date',
-    maxResults,
+    playlistId,
+    maxResults: '50',
     key: API_KEY,
   });
-  if (q) searchParams.set('q', q);
-  if (pageToken) searchParams.set('pageToken', pageToken);
+  if (pageToken) params.set('pageToken', pageToken);
 
   try {
-    const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${searchParams}`);
-    const searchData = await searchRes.json();
+    const apiRes = await fetch(`https://www.googleapis.com/youtube/v3/playlistItems?${params}`);
+    const data = await apiRes.json();
 
-    if (!searchRes.ok) {
-      return res.status(searchRes.status).json(searchData);
+    if (!apiRes.ok) {
+      return res.status(apiRes.status).json(data);
     }
 
-    const videoIds = (searchData.items || []).map((item) => item.id.videoId).filter(Boolean);
+    const videoIds = (data.items || [])
+      .map((item) => item.snippet?.resourceId?.videoId)
+      .filter(Boolean);
 
     let statsMap = {};
     if (videoIds.length > 0) {
@@ -49,17 +48,20 @@ export default async function handler(req, res) {
       }
     }
 
-    const videos = (searchData.items || []).map((item) => ({
-      id: item.id.videoId,
-      title: item.snippet.title,
-      thumbnail: item.snippet.thumbnails?.high?.url || item.snippet.thumbnails?.default?.url || '',
-      published: item.snippet.publishedAt?.split('T')[0] || '',
-      views: statsMap[item.id.videoId] || '',
-    }));
+    const videos = (data.items || []).map((item) => {
+      const id = item.snippet?.resourceId?.videoId || '';
+      return {
+        id,
+        title: item.snippet?.title || '',
+        thumbnail: item.snippet?.thumbnails?.high?.url || item.snippet?.thumbnails?.default?.url || '',
+        published: item.snippet?.publishedAt?.split('T')[0] || '',
+        views: statsMap[id] || '',
+      };
+    });
 
     return res.status(200).json({
       videos,
-      nextPageToken: searchData.nextPageToken || null,
+      nextPageToken: data.nextPageToken || null,
     });
   } catch (err) {
     return res.status(500).json({ error: err.message });

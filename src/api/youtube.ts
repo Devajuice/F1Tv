@@ -17,6 +17,7 @@ const TITLE_PATTERNS: Record<HighlightType, RegExp> = {
 const EXCLUDE = /F2|F3|Formula 2|Formula 3/i;
 const CACHE_KEY = 'f1_highlights_cache';
 const CACHE_TTL = 30 * 60 * 1000;
+const MIN_PER_TYPE = 8;
 
 interface CacheEntry {
   data: Record<HighlightType, YoutubeVideo[]>;
@@ -41,18 +42,6 @@ function setCache(data: Record<HighlightType, YoutubeVideo[]>) {
   } catch {}
 }
 
-async function fetchPage(pageToken: string): Promise<{ videos: YoutubeVideo[]; nextPageToken: string | null }> {
-  const params = new URLSearchParams({ maxResults: '50' });
-  if (pageToken) params.set('pageToken', pageToken);
-  const res = await fetch(`/api/youtube?${params}`);
-  if (!res.ok) return { videos: [], nextPageToken: null };
-  const data = await res.json();
-  return {
-    videos: data.videos || [],
-    nextPageToken: data.nextPageToken || null,
-  };
-}
-
 export async function fetchAllHighlights(): Promise<Record<HighlightType, YoutubeVideo[]>> {
   const cached = getCached();
   if (cached) return cached.data;
@@ -64,9 +53,15 @@ export async function fetchAllHighlights(): Promise<Record<HighlightType, Youtub
   };
 
   let pageToken = '';
-  for (let i = 0; i < 15; i++) {
-    const page = await fetchPage(pageToken);
-    for (const v of page.videos) {
+  for (let i = 0; i < 20; i++) {
+    const params = new URLSearchParams({ maxResults: '50' });
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const res = await fetch(`/api/youtube?${params}`);
+    if (!res.ok) break;
+    const data = await res.json();
+
+    for (const v of data.videos || []) {
       if (EXCLUDE.test(v.title)) continue;
       for (const type of ['race', 'sprint', 'qualifying'] as HighlightType[]) {
         if (TITLE_PATTERNS[type].test(v.title)) {
@@ -74,7 +69,13 @@ export async function fetchAllHighlights(): Promise<Record<HighlightType, Youtub
         }
       }
     }
-    pageToken = page.nextPageToken ?? '';
+
+    const allFound = (['race', 'sprint', 'qualifying'] as HighlightType[]).every(
+      (t) => result[t].length >= MIN_PER_TYPE
+    );
+    if (allFound) break;
+
+    pageToken = data.nextPageToken;
     if (!pageToken) break;
   }
 
