@@ -7,6 +7,7 @@ import { fetchHighlights, type HighlightType, type YoutubeVideo } from '../api/y
 
 type Tab = HighlightType;
 type SortBy = 'recent' | 'views';
+type HighlightVideo = YoutubeVideo;
 
 const RACE_HIGHLIGHTS: HighlightVideo[] = [
   { id: 'rnjmSOUYVp8', title: 'Race Highlights | 2026 British Grand Prix', thumbnail: 'https://i.ytimg.com/vi/rnjmSOUYVp8/hqdefault.jpg', published: '2026-07-05', views: '5.4M' },
