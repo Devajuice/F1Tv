@@ -14,16 +14,29 @@ const TITLE_PATTERNS: Record<HighlightType, RegExp> = {
   qualifying: /Qualifying Highlights.*\d{4}.*Grand Prix/i,
 };
 
-const TAB_QUERIES: Record<HighlightType, string> = {
-  race: 'race highlights',
-  sprint: 'sprint highlights',
-  qualifying: 'qualifying highlights',
-};
+const EXCLUDE = /F2|F3|Formula 2|Formula 3/i;
 
 export async function fetchHighlights(type: HighlightType): Promise<YoutubeVideo[]> {
-  const res = await fetch(`/api/youtube?q=${encodeURIComponent(TAB_QUERIES[type])}&maxResults=50`);
-  if (!res.ok) throw new Error(`YouTube API error: ${res.status}`);
-  const data = await res.json();
-  const pattern = TITLE_PATTERNS[type];
-  return (data.videos || []).filter((v: YoutubeVideo) => pattern.test(v.title) && !/F2|F3|Formula 2|Formula 3/i.test(v.title));
+  const allVideos: YoutubeVideo[] = [];
+  let pageToken = '';
+
+  for (let i = 0; i < 5 && allVideos.length < 30; i++) {
+    const params = new URLSearchParams({ maxResults: '50' });
+    if (pageToken) params.set('pageToken', pageToken);
+
+    const res = await fetch(`/api/youtube?${params}`);
+    if (!res.ok) break;
+    const data = await res.json();
+
+    for (const v of data.videos || []) {
+      if (TITLE_PATTERNS[type].test(v.title) && !EXCLUDE.test(v.title)) {
+        allVideos.push(v);
+      }
+    }
+
+    pageToken = data.nextPageToken;
+    if (!pageToken) break;
+  }
+
+  return allVideos;
 }

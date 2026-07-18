@@ -4,18 +4,19 @@ export default async function handler(req, res) {
     return res.status(500).json({ error: 'YOUTUBE_API_KEY not configured' });
   }
 
-  const { q = 'highlights', maxResults = '50' } = req.query;
+  const { q = '', maxResults = '50', pageToken = '' } = req.query;
   const channelId = 'UCB_qr75-ydFVKSF9Dmo6izg';
 
   const searchParams = new URLSearchParams({
     part: 'snippet',
     channelId,
-    q,
     type: 'video',
     order: 'date',
     maxResults,
     key: API_KEY,
   });
+  if (q) searchParams.set('q', q);
+  if (pageToken) searchParams.set('pageToken', pageToken);
 
   try {
     const searchRes = await fetch(`https://www.googleapis.com/youtube/v3/search?${searchParams}`);
@@ -56,7 +57,10 @@ export default async function handler(req, res) {
       views: statsMap[item.id.videoId] || '',
     }));
 
-    return res.status(200).json({ videos });
+    return res.status(200).json({
+      videos,
+      nextPageToken: searchData.nextPageToken || null,
+    });
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }
