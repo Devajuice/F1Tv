@@ -120,8 +120,6 @@ export default function GridLineup() {
   }, [selectedRound]);
 
   const selectedRace = races.find((r) => r.round === selectedRound);
-  const leftCol = results.filter((r) => parseInt(r.position) % 2 === 1);
-  const rightCol = results.filter((r) => parseInt(r.position) % 2 === 0);
 
   return (
     <PageWrapper>
