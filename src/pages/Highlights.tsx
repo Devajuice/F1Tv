@@ -1,18 +1,11 @@
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { Play, Calendar, Eye, Film, Flag, Timer, Zap, ArrowUpDown } from 'lucide-react';
 import Header from '../components/Header';
 import Footer from '../components/Footer';
 import PageWrapper from '../components/PageWrapper';
+import { fetchHighlights, type HighlightType, type YoutubeVideo } from '../api/youtube';
 
-interface HighlightVideo {
-  id: string;
-  title: string;
-  thumbnail: string;
-  published: string;
-  views: string;
-}
-
-type Tab = 'race' | 'sprint' | 'qualifying';
+type Tab = HighlightType;
 type SortBy = 'recent' | 'views';
 
 const RACE_HIGHLIGHTS: HighlightVideo[] = [
@@ -53,10 +46,10 @@ function parseViews(v: string): number {
   return num;
 }
 
-const TABS: { key: Tab; label: string; icon: React.ReactNode; data: HighlightVideo[]; accent: string; accentBg: string }[] = [
-  { key: 'race', label: 'Race', icon: <Flag size={14} />, data: RACE_HIGHLIGHTS, accent: '#e10600', accentBg: 'rgba(225,6,0,0.15)' },
-  { key: 'sprint', label: 'Sprint', icon: <Zap size={14} />, data: SPRINT_HIGHLIGHTS, accent: '#facc15', accentBg: 'rgba(250,204,21,0.15)' },
-  { key: 'qualifying', label: 'Qualifying', icon: <Timer size={14} />, data: QUALIFYING_HIGHLIGHTS, accent: '#60a5fa', accentBg: 'rgba(96,165,250,0.15)' },
+const TABS: { key: Tab; label: string; icon: React.ReactNode; accent: string; accentBg: string }[] = [
+  { key: 'race', label: 'Race', icon: <Flag size={14} />, accent: '#e10600', accentBg: 'rgba(225,6,0,0.15)' },
+  { key: 'sprint', label: 'Sprint', icon: <Zap size={14} />, accent: '#facc15', accentBg: 'rgba(250,204,21,0.15)' },
+  { key: 'qualifying', label: 'Qualifying', icon: <Timer size={14} />, accent: '#60a5fa', accentBg: 'rgba(96,165,250,0.15)' },
 ];
 
 const PAGE_SIZE = 6;
@@ -65,18 +58,37 @@ export default function Highlights() {
   const [tab, setTab] = useState<Tab>('race');
   const [sortBy, setSortBy] = useState<SortBy>('recent');
   const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
+  const [liveData, setLiveData] = useState<Record<Tab, YoutubeVideo[]>>({
+    race: RACE_HIGHLIGHTS,
+    sprint: SPRINT_HIGHLIGHTS,
+    qualifying: QUALIFYING_HIGHLIGHTS,
+  });
+
+  useEffect(() => {
+    const tabs: Tab[] = ['race', 'sprint', 'qualifying'];
+    tabs.forEach((t) => {
+      fetchHighlights(t)
+        .then((videos) => {
+          if (videos.length > 0) {
+            setLiveData((prev) => ({ ...prev, [t]: videos }));
+          }
+        })
+        .catch(() => {});
+    });
+  }, []);
 
   const currentTab = TABS.find((t) => t.key === tab)!;
+  const currentData = liveData[tab];
 
   const sortedVideos = useMemo(() => {
-    const videos = [...currentTab.data];
+    const videos = [...currentData];
     if (sortBy === 'views') {
       videos.sort((a, b) => parseViews(b.views) - parseViews(a.views));
     } else {
       videos.sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime());
     }
     return videos;
-  }, [currentTab.data, sortBy]);
+  }, [currentData, sortBy]);
 
   const visibleVideos = sortedVideos.slice(0, visibleCount);
   const hasMore = visibleCount < sortedVideos.length;
