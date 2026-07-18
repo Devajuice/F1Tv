@@ -9,12 +9,11 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 - **Push Notifications** — Browser notifications when a session is about to start or goes live
 - **Session Widget** — Auto-progressing pill showing the current/next session with live countdown
 - **Weather** — Real-time track weather (temperature, humidity, wind, rain) during race weekends
-- **Race Calendar** — Full season schedule with circuit images, countdown to next race, and ICS calendar export
+- **Race Calendar** — Full season schedule with circuit images, local times, countdown to next race, and ICS calendar export
 - **Race Results** — Dropdown race selector with finishing order, position changes, team colors, and status
-- **Sprint Results** — Sprint race results with grid positions, points, and status
 - **Qualifying Results** — Q1/Q2/Q3 breakdown with phase filter and race selector (auto-refreshes every 30s)
-- **Starting Grid** — Qualifying-based grid lineup with Q1/Q2/Q3 times
-- **Session Schedule** — Practice, qualifying, sprint, and race times for any round
+- **Starting Grid** — Qualifying-based grid lineup with real track formation (staggered on desktop, single-column on mobile), auto-refreshes every 30s
+- **Session Schedule** — Practice, qualifying, sprint, and race times displayed in your local timezone
 - **Championship Standings** — Driver and constructor standings with leader card, bar chart, and full table
 - **Driver Profiles** — Grid of all drivers with expandable detail cards (team, nationality, age, stats, Wikipedia)
 - **Highlights** — Race, Sprint, and Qualifying highlights from the official F1 YouTube channel
@@ -39,7 +38,7 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 ## APIs Used
 
 - [OpenF1](https://openf1.org/) — Session schedules and live weather data
-- [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, sprint results, qualifying results, grid lineup, and driver profiles
+- [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, qualifying results, grid lineup, practice schedules, and driver profiles
 - [RSS2JSON](https://api.rss2json.com/) — RSS-to-JSON proxy for F1 news feeds
 - [YouTube](https://www.youtube.com/@Formula1) — Race, sprint, and qualifying highlights (curated video IDs)
 
@@ -84,7 +83,6 @@ src/
 │   ├── Highlights.tsx    # Race, sprint, qualifying highlight tabs
 │   ├── RaceCalendar.tsx  # Full season schedule with ICS export
 │   ├── RaceResults.tsx   # Race selector with results table
-│   ├── SprintResults.tsx # Sprint race results with grid positions
 │   ├── QualifyingResults.tsx # Q1/Q2/Q3 results with auto-refresh
 │   ├── GridLineup.tsx    # Starting grid from qualifying data
 │   ├── PracticeSchedule.tsx # Session times for any race weekend
