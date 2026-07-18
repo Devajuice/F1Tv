@@ -1,6 +1,8 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, Trophy, ArrowLeft, Play, Menu, X, Calendar, Flag, Newspaper, Timer, Users } from 'lucide-react';
-import { useState } from 'react';
+import { Film, Trophy, ArrowLeft, Menu, X, Calendar, Flag, Newspaper, Timer, Users, Grid3x3, Clock } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { getSessions } from '../api/openf1';
+import type { F1Session } from '../api/openf1';
 
 interface NavLink {
   to: string;
@@ -15,17 +17,45 @@ interface HeaderProps {
   backLabel?: string;
 }
 
+function useLiveSession() {
+  const [live, setLive] = useState<F1Session | null>(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    const check = () => {
+      getSessions().then((sessions) => {
+        if (cancelled) return;
+        const now = new Date();
+        const current = sessions.find((s) => {
+          if (s.is_cancelled) return false;
+          const start = new Date(s.date_start);
+          const end = new Date(s.date_end);
+          return now >= start && now <= end;
+        });
+        setLive(current ?? null);
+      }).catch(() => {});
+    };
+    check();
+    const timer = setInterval(check, 60_000);
+    return () => { cancelled = true; clearInterval(timer); };
+  }, []);
+
+  return live;
+}
+
 export default function Header({ links, showBack, backTo = '/home', backLabel = 'Home' }: HeaderProps) {
   const [mobileOpen, setMobileOpen] = useState(false);
   const location = useLocation();
+  const liveSession = useLiveSession();
 
   const defaultLinks: NavLink[] = [
-    { to: '/stream', label: 'Watch', icon: <Play size={13} fill="currentColor" /> },
     { to: '/highlights', label: 'Highlights', icon: <Film size={13} /> },
     { to: '/standings', label: 'Standings', icon: <Trophy size={13} /> },
     { to: '/calendar', label: 'Calendar', icon: <Calendar size={13} /> },
     { to: '/results', label: 'Results', icon: <Flag size={13} /> },
     { to: '/qualifying', label: 'Qualifying', icon: <Timer size={13} /> },
+    { to: '/grid', label: 'Grid', icon: <Grid3x3 size={13} /> },
+    { to: '/schedule', label: 'Schedule', icon: <Clock size={13} /> },
     { to: '/drivers', label: 'Drivers', icon: <Users size={13} /> },
     { to: '/news', label: 'News', icon: <Newspaper size={13} /> },
   ];
@@ -39,6 +69,12 @@ export default function Header({ links, showBack, backTo = '/home', backLabel = 
       <Link to="/home" style={{ textDecoration: 'none', display: 'flex', alignItems: 'baseline', gap: 4, zIndex: 10 }}>
         <span style={{ fontSize: 28, fontWeight: 900, color: '#fff', fontStyle: 'italic' }}>F1</span>
         <span style={{ fontSize: 28, fontWeight: 900, color: '#e10600', fontStyle: 'italic' }}>TV</span>
+        {liveSession && (
+          <span className="pulse-dot" style={{
+            width: 8, height: 8, borderRadius: '50%', background: '#ef4444',
+            display: 'inline-block', marginLeft: 4, verticalAlign: 'middle',
+          }} title={`LIVE: ${liveSession.session_name} - ${liveSession.circuit_short_name}`} />
+        )}
       </Link>
 
       {/* Desktop nav */}
@@ -91,6 +127,12 @@ export default function Header({ links, showBack, backTo = '/home', backLabel = 
           border: '1px solid rgba(255,255,255,0.08)', borderRadius: 12, padding: 8,
           display: 'flex', flexDirection: 'column', gap: 4,
         }}>
+          {liveSession && (
+            <div style={{ padding: '8px 12px', fontSize: 11, fontWeight: 700, color: '#ef4444', display: 'flex', alignItems: 'center', gap: 6 }}>
+              <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444', display: 'inline-block' }} />
+              LIVE: {liveSession.session_name}
+            </div>
+          )}
           {showBack ? (
             <Link
               to={backTo}

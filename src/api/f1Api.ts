@@ -224,6 +224,59 @@ export async function getQualifyingResult(season: string, round: string): Promis
   });
 }
 
+export async function getSprintResult(season: string, round: string): Promise<RaceResult[]> {
+  const res = await fetch(`${BASE_URL}/${season}/${round}/sprint.json`);
+  const data = await res.json();
+  const race = data.MRData.RaceTable.Races[0];
+  if (!race?.SprintResults) return [];
+  return race.SprintResults.map((r: ErgastResult) => transformResult(r));
+}
+
+export async function getGridLineup(season: string, round: string): Promise<QualifyingResult[]> {
+  const res = await fetch(`${BASE_URL}/${season}/${round}/qualifying.json`);
+  const data = await res.json();
+  const race = data.MRData.RaceTable.Races[0];
+  if (!race) return [];
+  return (race.QualifyingResults ?? []).map((r: Record<string, unknown>) => {
+    const d = r.Driver as { driverId: string; givenName: string; familyName: string; permanentNumber?: string; nationality: string; dateOfBirth: string };
+    const c = r.Constructor as { constructorId: string; name: string };
+    return {
+      position: r.position as string,
+      driverId: d.driverId,
+      driverName: `${d.givenName} ${d.familyName}`,
+      driverNumber: d.permanentNumber ?? '',
+      constructorId: c.constructorId,
+      constructorName: c.name,
+      q1: r.Q1 as string | null,
+      q2: r.Q2 as string | null,
+      q3: r.Q3 as string | null,
+      nationality: d.nationality,
+      dateOfBirth: d.dateOfBirth,
+    };
+  });
+}
+
+export interface PracticeSession {
+  name: string;
+  date: string;
+  time: string;
+}
+
+export async function getPracticeSchedule(season: string, round: string): Promise<PracticeSession[]> {
+  const res = await fetch(`${BASE_URL}/${season}/${round}.json`);
+  const data = await res.json();
+  const race = data.MRData.RaceTable.Races[0];
+  if (!race) return [];
+  const sessions: PracticeSession[] = [];
+  if (race.FirstPractice) sessions.push({ name: 'Practice 1', date: race.FirstPractice.date, time: race.FirstPractice.time ?? '' });
+  if (race.SecondPractice) sessions.push({ name: 'Practice 2', date: race.SecondPractice.date, time: race.SecondPractice.time ?? '' });
+  if (race.ThirdPractice) sessions.push({ name: 'Practice 3', date: race.ThirdPractice.date, time: race.ThirdPractice.time ?? '' });
+  if (race.SprintQualifying) sessions.push({ name: 'Sprint Qualifying', date: race.SprintQualifying.date, time: race.SprintQualifying.time ?? '' });
+  if (race.Sprint) sessions.push({ name: 'Sprint', date: race.Sprint.date, time: race.Sprint.time ?? '' });
+  if (race.Qualifying) sessions.push({ name: 'Qualifying', date: race.Qualifying.date, time: race.Qualifying.time ?? '' });
+  return sessions;
+}
+
 export async function getDriverList(season?: string): Promise<DriverProfile[]> {
   const year = season ?? new Date().getFullYear().toString();
   const res = await fetch(`${BASE_URL}/${year}/driverStandings.json`);

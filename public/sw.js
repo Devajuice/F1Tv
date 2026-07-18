@@ -35,7 +35,7 @@ self.addEventListener('fetch', (event) => {
           }
           return response;
         })
-        .catch(() => cached);
+        .catch(() => cached || new Response('Offline', { status: 503, statusText: 'Offline' }));
 
       return cached || fetchPromise;
     }),

@@ -5,11 +5,16 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 ## Features
 
 - **Live Streaming** — 9 free stream servers with online/offline detection, server switching, and keyboard shortcuts
+- **Live Session Indicator** — Red pulse badge on the F1TV logo when a session is currently in progress
+- **Push Notifications** — Browser notifications when a session is about to start or goes live
 - **Session Widget** — Auto-progressing pill showing the current/next session with live countdown
 - **Weather** — Real-time track weather (temperature, humidity, wind, rain) during race weekends
 - **Race Calendar** — Full season schedule with circuit images, countdown to next race, and ICS calendar export
 - **Race Results** — Dropdown race selector with finishing order, position changes, team colors, and status
-- **Qualifying Results** — Q1/Q2/Q3 breakdown with phase filter and race selector
+- **Sprint Results** — Sprint race results with grid positions, points, and status
+- **Qualifying Results** — Q1/Q2/Q3 breakdown with phase filter and race selector (auto-refreshes every 30s)
+- **Starting Grid** — Qualifying-based grid lineup with Q1/Q2/Q3 times
+- **Session Schedule** — Practice, qualifying, sprint, and race times for any round
 - **Championship Standings** — Driver and constructor standings with leader card, bar chart, and full table
 - **Driver Profiles** — Grid of all drivers with expandable detail cards (team, nationality, age, stats, Wikipedia)
 - **Highlights** — Race, Sprint, and Qualifying highlights from the official F1 YouTube channel
@@ -34,7 +39,7 @@ A Formula 1 streaming and information website built with React, TypeScript, and 
 ## APIs Used
 
 - [OpenF1](https://openf1.org/) — Session schedules and live weather data
-- [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, qualifying results, and driver profiles
+- [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, sprint results, qualifying results, grid lineup, and driver profiles
 - [RSS2JSON](https://api.rss2json.com/) — RSS-to-JSON proxy for F1 news feeds
 - [YouTube](https://www.youtube.com/@Formula1) — Race, sprint, and qualifying highlights (curated video IDs)
 
@@ -60,13 +65,15 @@ npm run lint
 src/
 ├── api/
 │   ├── openf1.ts        # Session schedules and weather data
-│   ├── f1Api.ts         # Standings, schedule, race results, qualifying, driver profiles
+│   ├── f1Api.ts         # Standings, schedule, race/sprint/qualifying results, grid, driver profiles
 │   └── news.ts          # RSS feed fetching via rss2json.com proxy
 ├── components/
-│   ├── Header.tsx        # Responsive nav bar with mobile hamburger menu
+│   ├── Header.tsx        # Responsive nav bar with live session indicator
 │   ├── Footer.tsx        # Attribution and disclaimer
 │   ├── PageWrapper.tsx   # Animated page transitions
 │   └── BackToTop.tsx     # Floating scroll-to-top button
+├── hooks/
+│   └── useSessionNotifications.ts # Push notifications for session starts
 ├── data/
 │   ├── streamServers.ts  # Stream server URLs
 │   └── teams.ts          # Team names and colors
@@ -77,11 +84,14 @@ src/
 │   ├── Highlights.tsx    # Race, sprint, qualifying highlight tabs
 │   ├── RaceCalendar.tsx  # Full season schedule with ICS export
 │   ├── RaceResults.tsx   # Race selector with results table
-│   ├── QualifyingResults.tsx # Q1/Q2/Q3 results with race selector
+│   ├── SprintResults.tsx # Sprint race results with grid positions
+│   ├── QualifyingResults.tsx # Q1/Q2/Q3 results with auto-refresh
+│   ├── GridLineup.tsx    # Starting grid from qualifying data
+│   ├── PracticeSchedule.tsx # Session times for any race weekend
 │   ├── Drivers.tsx       # Driver grid with expandable profile cards
 │   ├── News.tsx          # Live F1 news feed
 │   └── NotFound.tsx      # 404 page
-├── App.tsx               # Router configuration
+├── App.tsx               # Router configuration + notifications
 ├── main.tsx              # Entry point + service worker registration
 └── index.css             # Tailwind, animations, glass styles
 ```
