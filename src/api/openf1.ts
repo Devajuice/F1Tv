@@ -25,13 +25,11 @@ export interface F1Weather {
 }
 
 const OPENF1_BASE = '/api/openf1';
-const OPENF1_API_KEY = import.meta.env.VITE_OPENF1_API_KEY ?? '';
 
 // --- Caching ---
 interface CacheEntry<T> { data: T; time: number; }
 const cache = new Map<string, CacheEntry<unknown>>();
 const CACHE_TTL = 600_000; // 10 minutes
-const WEATHER_CACHE_TTL = 300_000; // 5 minutes
 const LS_PREFIX = 'f1tv-';
 const LS_TTL = 86_400_000; // 24 hours for localStorage
 
@@ -65,18 +63,9 @@ function setLocal<T>(key: string, data: T): void {
 }
 
 // --- Fetch with retry on 429 ---
-let _lastAuthFailure = 0;
-const AUTH_BACKOFF = 300_000; // 5 minutes
-
 async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
-  if (!OPENF1_API_KEY && Date.now() - _lastAuthFailure < AUTH_BACKOFF) {
-    return new Response(null, { status: 401, statusText: 'Backed off' });
-  }
-  const headers: Record<string, string> = {};
-  if (OPENF1_API_KEY) headers['Authorization'] = `Bearer ${OPENF1_API_KEY}`;
   for (let i = 0; i <= retries; i++) {
-    const res = await fetch(url, { headers });
-    if (res.status === 401) _lastAuthFailure = Date.now();
+    const res = await fetch(url);
     if (res.status === 429 && i < retries) {
       const wait = Math.pow(2, i + 1) * 1000;
       await new Promise((r) => setTimeout(r, wait));
@@ -84,7 +73,7 @@ async function fetchWithRetry(url: string, retries = 2): Promise<Response> {
     }
     return res;
   }
-  return fetch(url, { headers });
+  return fetch(url);
 }
 
 // --- Sessions ---
@@ -103,13 +92,9 @@ export async function getSessions(year?: number): Promise<F1Session[]> {
     try {
       const res = await fetchWithRetry(`${OPENF1_BASE}/sessions?year=${y}`);
       if (!res.ok) {
-        if (res.status === 401) {
-          const local = getLocal<F1Session[]>(key);
-          if (local && local.length > 0) return local;
-          return [] as F1Session[];
-        }
         const local = getLocal<F1Session[]>(key);
         if (local && local.length > 0) return local;
+        if (res.status === 401) return await getFallbackSessions(y);
         throw new Error(`Sessions fetch failed: ${res.status}`);
       }
       const data: F1Session[] = await res.json();
@@ -135,22 +120,6 @@ export function getNextRaceSession(sessions: F1Session[]): F1Session | null {
   return races.length > 0 ? races[0] : (upcoming.length > 0 ? upcoming[0] : null);
 }
 
-export function getCurrentOrNextSession(sessions: F1Session[]): F1Session | null {
-  const now = new Date();
-  for (const s of sessions) {
-    if (s.is_cancelled) continue;
-    const start = new Date(s.date_start);
-    const end = new Date(s.date_end);
-    if (now >= start && now <= end) return s;
-  }
-  for (const s of sessions) {
-    if (s.is_cancelled) continue;
-    const start = new Date(s.date_start);
-    if (start > now) return s;
-  }
-  return null;
-}
-
 export function getSessionProgress(sessions: F1Session[]): { current: F1Session; upcoming: F1Session[]; finished: F1Session[] } | null {
   const now = new Date();
   const all = sessions.filter((s) => !s.is_cancelled);
@@ -171,6 +140,8 @@ export function getSessionProgress(sessions: F1Session[]): { current: F1Session;
 }
 
 // --- Weather ---
+const WEATHER_CACHE_TTL = 300_000; // 5 minutes
+
 async function fetchWeatherForSession(sessionKey: number): Promise<F1Weather | null> {
   const key = `weather-${sessionKey}`;
   const cached = getCached<F1Weather | null>(key, WEATHER_CACHE_TTL);
@@ -355,146 +326,6 @@ export function getSessionLabel(_type: string, name: string): string {
   if (name === 'Race') return 'RACE';
   if (name.startsWith('Day')) return name;
   return _type;
-}
-
-// --- Live Timing: Positions ---
-export interface PositionEntry {
-  driver_number: number;
-  position: number;
-  date: string;
-}
-
-export async function getPositions(sessionKey: number): Promise<Map<number, number>> {
-  const res = await fetchWithRetry(`${OPENF1_BASE}/position?session_key=${sessionKey}`);
-  if (!res.ok) return new Map();
-  const data: PositionEntry[] = await res.json();
-  const map = new Map<number, number>();
-  for (const entry of data) {
-    map.set(entry.driver_number, entry.position);
-  }
-  return map;
-}
-
-// --- Live Timing: Intervals ---
-export interface IntervalEntry {
-  driver_number: number;
-  gap_to_leader: string | number | null;
-  interval: string | number | null;
-}
-
-export async function getIntervals(sessionKey: number): Promise<Map<number, { gap: string | number | null; interval: string | number | null }>> {
-  const res = await fetchWithRetry(`${OPENF1_BASE}/intervals?session_key=${sessionKey}`);
-  if (!res.ok) return new Map();
-  const data: IntervalEntry[] = await res.json();
-  const map = new Map<number, { gap: string | number | null; interval: string | number | null }>();
-  for (const entry of data) {
-    map.set(entry.driver_number, { gap: entry.gap_to_leader, interval: entry.interval });
-  }
-  return map;
-}
-
-// --- Live Timing: Drivers ---
-export interface DriverInfo {
-  driver_number: number;
-  name_acronym: string;
-  full_name: string;
-  team_name: string;
-  team_colour: string;
-  headshot_url?: string;
-}
-
-export async function getDrivers(sessionKey: number): Promise<Map<number, DriverInfo>> {
-  const key = `drivers-${sessionKey}`;
-  const cached = getCached<Map<number, DriverInfo>>(key);
-  if (cached) return cached;
-
-  const res = await fetchWithRetry(`${OPENF1_BASE}/drivers?session_key=${sessionKey}`);
-  if (!res.ok) return new Map();
-  const data: DriverInfo[] = await res.json();
-  const map = new Map<number, DriverInfo>();
-  for (const d of data) {
-    map.set(d.driver_number, d);
-  }
-  setCache(key, map);
-  return map;
-}
-
-// --- Live Timing: Car Data ---
-export interface CarDataEntry {
-  driver_number: number;
-  speed: number;
-  throttle: number;
-  brake: number;
-  n_gear: number;
-  drs: number;
-}
-
-export async function getCarData(sessionKey: number): Promise<Map<number, CarDataEntry>> {
-  const res = await fetchWithRetry(`${OPENF1_BASE}/car_data?session_key=${sessionKey}`);
-  if (!res.ok) return new Map();
-  const data: CarDataEntry[] = await res.json();
-  const map = new Map<number, CarDataEntry>();
-  for (const entry of data) {
-    map.set(entry.driver_number, entry);
-  }
-  return map;
-}
-
-// --- Track Map: Location ---
-export interface LocationEntry {
-  driver_number: number;
-  x: number;
-  y: number;
-  z: number;
-  date: string;
-}
-
-export async function getLocationData(sessionKey: number): Promise<Map<number, { x: number; y: number }>> {
-  const res = await fetchWithRetry(`${OPENF1_BASE}/location?session_key=${sessionKey}`);
-  if (!res.ok) return new Map();
-  const data: LocationEntry[] = await res.json();
-  const map = new Map<number, { x: number; y: number }>();
-  for (const entry of data) {
-    map.set(entry.driver_number, { x: entry.x, y: entry.y });
-  }
-  return map;
-}
-
-// --- Fastest Laps ---
-export interface LapEntry {
-  driver_number: number;
-  lap_number: number;
-  lap_duration: number | null;
-  duration_sector_1: number | null;
-  duration_sector_2: number | null;
-  duration_sector_3: number | null;
-  st_speed: number | null;
-  is_pit_out_lap: boolean;
-}
-
-export async function getLaps(sessionKey: number): Promise<LapEntry[]> {
-  const res = await fetchWithRetry(`${OPENF1_BASE}/laps?session_key=${sessionKey}`);
-  if (!res.ok) return [];
-  const data: LapEntry[] = await res.json();
-  return data.filter((l) => l.lap_duration !== null && !l.is_pit_out_lap);
-}
-
-// --- Race Control ---
-export interface RaceControlMessage {
-  date: string;
-  category: string;
-  flag: string | null;
-  message: string;
-  scope: string | null;
-  driver_number: number | null;
-  lap_number: number | null;
-  sector: number | null;
-}
-
-export async function getRaceControl(sessionKey: number): Promise<RaceControlMessage[]> {
-  const res = await fetchWithRetry(`${OPENF1_BASE}/race_control?session_key=${sessionKey}`);
-  if (!res.ok) return [];
-  return await res.json();
 }
 
 export function getTrackImageUrl(circuitShortName: string): string {

@@ -56,11 +56,19 @@ export default function QualifyingResults() {
 
   useEffect(() => {
     if (!selectedRound) return;
-    setResultLoading(true);
-    getQualifyingResult(new Date().getFullYear().toString(), selectedRound)
-      .then(setResults)
-      .catch(() => setResults([]))
-      .finally(() => setResultLoading(false));
+    let cancelled = false;
+
+    const fetch = () => {
+      setResultLoading(true);
+      getQualifyingResult(new Date().getFullYear().toString(), selectedRound)
+        .then((r) => { if (!cancelled) setResults(r); })
+        .catch(() => { if (!cancelled) setResults([]); })
+        .finally(() => { if (!cancelled) setResultLoading(false); });
+    };
+
+    fetch();
+    const timer = setInterval(fetch, 30_000);
+    return () => { cancelled = true; clearInterval(timer); };
   }, [selectedRound]);
 
   const selectedRace = races.find((r) => r.round === selectedRound);

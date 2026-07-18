@@ -1,15 +1,7 @@
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useCallback, useRef, useEffect } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Server, X, Wifi, WifiOff, Maximize, MonitorSmartphone, Keyboard, Timer, Map as MapIcon, Zap, Radio } from 'lucide-react';
+import { ArrowLeft, Play, Server, X, Wifi, WifiOff, Maximize, MonitorSmartphone, Keyboard } from 'lucide-react';
 import { streamServers, type StreamServer } from '../data/streamServers';
-import { getSessions, getCurrentOrNextSession, getPositions, getIntervals, getDrivers, getCarData, getLocationData, getLaps } from '../api/openf1';
-import type { DriverInfo, CarDataEntry, LapEntry } from '../api/openf1';
-import LiveTimingTab from '../components/LiveTimingTab';
-import TrackMapTab from '../components/TrackMapTab';
-import FastestLapTab from '../components/FastestLapTab';
-import RaceControlFeed from '../components/RaceControlFeed';
-
-type LiveTab = 'timing' | 'map' | 'fastest' | 'control';
 
 export default function Stream() {
   const [activeServer, setActiveServer] = useState<StreamServer>(streamServers[0]);
@@ -21,16 +13,6 @@ export default function Stream() {
   const [showHelp, setShowHelp] = useState(false);
   const controlsTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
   const iframeRef = useRef<HTMLIFrameElement>(null);
-
-  // Live data state
-  const [activeTab, setActiveTab] = useState<LiveTab>('timing');
-  const [sessionKey, setSessionKey] = useState<number | null>(null);
-  const [positions, setPositions] = useState<Map<number, number>>(new Map());
-  const [intervals, setIntervals] = useState<Map<number, { gap: string | number | null; interval: string | number | null }>>(new Map());
-  const [drivers, setDrivers] = useState<Map<number, DriverInfo>>(new Map());
-  const [carData, setCarData] = useState<Map<number, CarDataEntry>>(new Map());
-  const [locations, setLocations] = useState<Map<number, { x: number; y: number }>>(new Map());
-  const [laps, setLaps] = useState<LapEntry[]>([]);
 
   const showToast = useCallback((msg: string) => {
     setToast(msg);
@@ -44,81 +26,6 @@ export default function Stream() {
       if (!showServerSelector && !showHelp) setShowControls(false);
     }, 3000);
   }, [showServerSelector, showHelp]);
-
-  // Fetch current session
-  useEffect(() => {
-    let cancelled = false;
-    (async () => {
-      try {
-        const sessions = await getSessions();
-        const current = getCurrentOrNextSession(sessions);
-        if (!cancelled && current) setSessionKey(current.session_key);
-      } catch { /* ignore */ }
-    })();
-    return () => { cancelled = true; };
-  }, []);
-
-  // Poll live data
-  useEffect(() => {
-    if (!sessionKey) return;
-    let cancelled = false;
-    let timer: ReturnType<typeof setTimeout> | null = null;
-    let lapTimer: ReturnType<typeof setTimeout> | null = null;
-
-    // Fetch drivers once (doesn't change during a session)
-    getDrivers(sessionKey).then((d) => {
-      if (!cancelled) setDrivers(d);
-    }).catch(() => {});
-
-    const staggeredFetch = async () => {
-      if (cancelled) return;
-
-      // Batch 1: positions + intervals (lightweight, ~2 req)
-      try {
-        const [posMap, intMap] = await Promise.allSettled([
-          getPositions(sessionKey),
-          getIntervals(sessionKey),
-        ]);
-        if (cancelled) return;
-        if (posMap.status === 'fulfilled') setPositions(posMap.value);
-        if (intMap.status === 'fulfilled') setIntervals(intMap.value);
-      } catch { /* ignore */ }
-
-      // Small delay between batches to respect rate limits
-      await new Promise((r) => setTimeout(r, 1500));
-      if (cancelled) return;
-
-      // Batch 2: car data + location (~2 req)
-      try {
-        const [carMap, locMap] = await Promise.allSettled([
-          getCarData(sessionKey),
-          getLocationData(sessionKey),
-        ]);
-        if (cancelled) return;
-        if (carMap.status === 'fulfilled') setCarData(carMap.value);
-        if (locMap.status === 'fulfilled') setLocations(locMap.value);
-      } catch { /* ignore */ }
-    };
-
-    // Fetch laps separately, less frequently (heavier response)
-    const fetchLaps = () => {
-      if (cancelled) return;
-      getLaps(sessionKey).then((l) => {
-        if (!cancelled) setLaps(l);
-      }).catch(() => {});
-    };
-
-    staggeredFetch();
-    fetchLaps();
-
-    timer = setInterval(staggeredFetch, 8000);
-    lapTimer = setInterval(fetchLaps, 15000);
-    return () => {
-      cancelled = true;
-      if (timer) clearInterval(timer);
-      if (lapTimer) clearInterval(lapTimer);
-    };
-  }, [sessionKey]);
 
   const requestPiP = useCallback(() => {
     const iframe = iframeRef.current;
@@ -137,7 +44,6 @@ export default function Stream() {
     }
   }, [showToast]);
 
-  // Keyboard shortcuts
   useEffect(() => {
     const handler = (e: KeyboardEvent) => {
       if (e.target instanceof HTMLInputElement || e.target instanceof HTMLTextAreaElement) return;
@@ -161,18 +67,6 @@ export default function Stream() {
           break;
         case 'p':
           requestPiP();
-          break;
-        case '1':
-          setActiveTab('timing');
-          break;
-        case '2':
-          setActiveTab('map');
-          break;
-        case '3':
-          setActiveTab('fastest');
-          break;
-        case '4':
-          setActiveTab('control');
           break;
       }
       resetControlsTimer();
@@ -198,16 +92,8 @@ export default function Stream() {
 
   const onlineCount = Object.values(serverStatuses).filter(Boolean).length;
 
-  const tabs: { key: LiveTab; label: string; icon: React.ReactNode }[] = [
-    { key: 'timing', label: 'Live Timing', icon: <Timer size={13} /> },
-    { key: 'map', label: 'Track Map', icon: <MapIcon size={13} /> },
-    { key: 'fastest', label: 'Fastest Lap', icon: <Zap size={13} /> },
-    { key: 'control', label: 'Race Control', icon: <Radio size={13} /> },
-  ];
-
   return (
     <div style={{ minHeight: '100vh', background: '#050505', display: 'flex', flexDirection: 'column' }}>
-      {/* Toast */}
       {toast && (
         <div style={{
           position: 'fixed', top: 24, left: '50%', transform: 'translateX(-50%)', zIndex: 100,
@@ -219,7 +105,6 @@ export default function Stream() {
         </div>
       )}
 
-      {/* Keyboard shortcuts help */}
       {showHelp && (
         <div style={{
           position: 'fixed', top: 80, right: 24, zIndex: 90,
@@ -237,7 +122,6 @@ export default function Stream() {
             { key: 'F', desc: 'Fullscreen' },
             { key: 'P', desc: 'Picture-in-Picture' },
             { key: 'H', desc: 'Toggle help' },
-            { key: '1/2/3/4', desc: 'Switch tab' },
             { key: 'Esc', desc: 'Close modals' },
           ].map(({ key, desc }) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
@@ -248,161 +132,83 @@ export default function Stream() {
         </div>
       )}
 
-      {/* Main layout */}
-      <div style={{ display: 'flex', flex: 1, flexDirection: 'column', minHeight: '100vh' }}
-        className="stream-layout"
-      >
-        {/* Stream Player */}
-        <div style={{ position: 'relative', minHeight: '50vh', flex: '1 1 50%' }}>
-          {loading && (
-            <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#050505', zIndex: 10 }}>
-              <div style={{ width: 40, height: 40, border: '3px solid rgba(225,6,0,0.2)', borderTopColor: '#e10600', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: 16 }} />
-              <p style={{ fontSize: 14, fontWeight: 600, color: '#737373', marginBottom: 4 }}>Connecting to stream...</p>
-              <p style={{ fontSize: 12, color: '#525252' }}>{activeServer.name}</p>
-            </div>
-          )}
-          <iframe
-            ref={iframeRef}
-            key={activeServer.id}
-            src={activeServer.url}
-            style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: loading ? 'none' : 'block' }}
-            allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
-            allowFullScreen
-            onLoad={() => setLoading(false)}
-          />
-
-          {/* Controls overlay */}
-          <div
-            style={{
-              position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20,
-              background: showControls ? 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)' : 'transparent',
-              padding: showControls ? '40px 16px 16px' : '0',
-              transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
-              opacity: showControls ? 1 : 0,
-              pointerEvents: showControls ? 'auto' : 'none',
-            }}
-            onMouseMove={resetControlsTimer}
-          >
-            <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
-              <Link to="/home" className="glass" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, color: '#d4d4d4', textDecoration: 'none', fontSize: 13 }}>
-                <ArrowLeft size={13} /> Home
-              </Link>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                <button
-                  className="glass"
-                  onClick={() => setShowHelp((v) => !v)}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#737373', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  title="Keyboard shortcuts (H)"
-                >
-                  <Keyboard size={14} />
-                </button>
-                <button
-                  className="glass"
-                  onClick={() => document.documentElement.requestFullscreen().catch(() => {})}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#737373', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  title="Fullscreen (F)"
-                >
-                  <Maximize size={14} />
-                </button>
-                <button
-                  className="glass"
-                  onClick={requestPiP}
-                  style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#737373', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                  title="Picture-in-Picture (P)"
-                >
-                  <MonitorSmartphone size={14} />
-                </button>
-                <button
-                  className="glass"
-                  onClick={() => setShowServerSelector(true)}
-                  style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, color: '#d4d4d4', fontSize: 13, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
-                >
-                  <Server size={13} color="#e10600" />
-                  {activeServer.name}
-                  {onlineCount > 0 && (
-                    <span style={{ fontSize: 10, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 5px', borderRadius: 4 }}>
-                      {onlineCount} live
-                    </span>
-                  )}
-                </button>
-              </div>
-            </div>
+      <div style={{ position: 'relative', flex: 1, minHeight: '100vh' }}>
+        {loading && (
+          <div style={{ position: 'absolute', inset: 0, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', background: '#050505', zIndex: 10 }}>
+            <div style={{ width: 40, height: 40, border: '3px solid rgba(225,6,0,0.2)', borderTopColor: '#e10600', borderRadius: '50%', animation: 'spin 1s linear infinite', marginBottom: 16 }} />
+            <p style={{ fontSize: 14, fontWeight: 600, color: '#737373', marginBottom: 4 }}>Connecting to stream...</p>
+            <p style={{ fontSize: 12, color: '#525252' }}>{activeServer.name}</p>
           </div>
-        </div>
+        )}
+        <iframe
+          ref={iframeRef}
+          key={activeServer.id}
+          src={activeServer.url}
+          style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', border: 'none', display: loading ? 'none' : 'block' }}
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+          onLoad={() => setLoading(false)}
+        />
 
-        {/* Live Data Panel */}
-        <div style={{
-          background: '#0a0a0a',
-          borderTop: '1px solid rgba(255,255,255,0.06)',
-          minHeight: '30vh',
-        }}>
-          {/* Tab bar */}
-          <div style={{
-            display: 'flex', alignItems: 'center', gap: 2, padding: '8px 16px 0',
-            borderBottom: '1px solid rgba(255,255,255,0.06)',
-          }}>
-            {tabs.map((tab) => {
-              const active = activeTab === tab.key;
-              return (
-                <button
-                  key={tab.key}
-                  onClick={() => setActiveTab(tab.key)}
-                  style={{
-                    display: 'flex', alignItems: 'center', gap: 5, padding: '8px 14px',
-                    borderRadius: '8px 8px 0 0', fontSize: 12, fontWeight: 600,
-                    cursor: 'pointer', border: 'none', fontFamily: 'inherit',
-                    transition: 'all 0.15s',
-                    background: active ? 'rgba(225,6,0,0.12)' : 'transparent',
-                    color: active ? '#e10600' : '#737373',
-                    boxShadow: active ? 'inset 0 -2px 0 #e10600' : 'none',
-                  }}
-                >
-                  {tab.icon}
-                  {tab.label}
-                </button>
-              );
-            })}
-            {sessionKey && (
-              <span style={{ marginLeft: 'auto', fontSize: 10, color: '#34d399', display: 'flex', alignItems: 'center', gap: 4 }}>
-                <span className="pulse-dot" style={{ width: 5, height: 5, borderRadius: '50%', background: '#34d399', display: 'inline-block' }} />
-                LIVE
-              </span>
-            )}
-          </div>
+        <div
+          style={{
+            position: 'absolute', bottom: 0, left: 0, right: 0, zIndex: 20,
+            background: showControls ? 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 100%)' : 'transparent',
+            padding: showControls ? '40px 16px 16px' : '0',
+            transition: 'all 0.4s cubic-bezier(0.4,0,0.2,1)',
+            opacity: showControls ? 1 : 0,
+            pointerEvents: showControls ? 'auto' : 'none',
+          }}
+          onMouseMove={resetControlsTimer}
+        >
+          <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+            <Link to="/home" className="glass" style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 10px', borderRadius: 8, color: '#d4d4d4', textDecoration: 'none', fontSize: 13 }}>
+              <ArrowLeft size={13} /> Home
+            </Link>
 
-          {/* Tab content */}
-          <div style={{ padding: '0' }}>
-            {activeTab === 'timing' && (
-              <LiveTimingTab
-                positions={positions}
-                intervals={intervals}
-                drivers={drivers}
-                carData={carData}
-              />
-            )}
-            {activeTab === 'map' && (
-              <TrackMapTab
-                locations={locations}
-                drivers={drivers}
-              />
-            )}
-            {activeTab === 'fastest' && (
-              <FastestLapTab
-                laps={laps}
-                drivers={drivers}
-              />
-            )}
-            {activeTab === 'control' && sessionKey && (
-              <RaceControlFeed
-                sessionKey={sessionKey}
-              />
-            )}
+            <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
+              <button
+                className="glass"
+                onClick={() => setShowHelp((v) => !v)}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#737373', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                title="Keyboard shortcuts (H)"
+              >
+                <Keyboard size={14} />
+              </button>
+              <button
+                className="glass"
+                onClick={() => document.documentElement.requestFullscreen().catch(() => {})}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#737373', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                title="Fullscreen (F)"
+              >
+                <Maximize size={14} />
+              </button>
+              <button
+                className="glass"
+                onClick={requestPiP}
+                style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: 32, height: 32, borderRadius: 8, color: '#737373', cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+                title="Picture-in-Picture (P)"
+              >
+                <MonitorSmartphone size={14} />
+              </button>
+              <button
+                className="glass"
+                onClick={() => setShowServerSelector(true)}
+                style={{ display: 'flex', alignItems: 'center', gap: 6, padding: '6px 12px', borderRadius: 8, color: '#d4d4d4', fontSize: 13, cursor: 'pointer', background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)' }}
+              >
+                <Server size={13} color="#e10600" />
+                {activeServer.name}
+                {onlineCount > 0 && (
+                  <span style={{ fontSize: 10, color: '#34d399', background: 'rgba(52,211,153,0.1)', padding: '1px 5px', borderRadius: 4 }}>
+                    {onlineCount} live
+                  </span>
+                )}
+              </button>
+            </div>
           </div>
         </div>
       </div>
 
-      {/* Server Modal */}
       {showServerSelector && (
         <div
           style={{ position: 'fixed', inset: 0, zIndex: 50, display: 'flex', alignItems: 'center', justifyContent: 'center', background: 'rgba(0,0,0,0.7)', backdropFilter: 'blur(4px)', padding: 16 }}
@@ -465,24 +271,7 @@ export default function Stream() {
         </div>
       )}
 
-      <style>{`
-        @keyframes spin { to { transform: rotate(360deg) } }
-        @media (min-width: 1024px) {
-          .stream-layout {
-            flex-direction: row !important;
-          }
-          .stream-layout > div:first-child {
-            min-height: 100vh !important;
-            flex: 1 1 60% !important;
-          }
-          .stream-layout > div:last-child {
-            flex: 1 1 40% !important;
-            min-height: 100vh !important;
-            border-top: none !important;
-            border-left: 1px solid rgba(255,255,255,0.06) !important;
-          }
-        }
-      `}</style>
+      <style>{`@keyframes spin { to { transform: rotate(360deg) } }`}</style>
     </div>
   );
 }
