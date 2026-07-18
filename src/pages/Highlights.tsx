@@ -35,6 +35,7 @@ const SPRINT_HIGHLIGHTS: HighlightVideo[] = [
 ];
 
 const QUALIFYING_HIGHLIGHTS: HighlightVideo[] = [
+  { id: 'CmzXqYzymzg', title: 'Qualifying Highlights | 2026 Belgian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/CmzXqYzymzg/hqdefault.jpg', published: '2026-07-18', views: '3.5M' },
   { id: 'rx41vYOBLFE', title: 'Qualifying Highlights | 2026 British Grand Prix', thumbnail: 'https://i.ytimg.com/vi/rx41vYOBLFE/hqdefault.jpg', published: '2026-07-04', views: '3.3M' },
   { id: 'sZb7_vNeA9o', title: 'Qualifying Highlights | 2026 Austrian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/sZb7_vNeA9o/hqdefault.jpg', published: '2026-06-27', views: '4.0M' },
   { id: 'Q2fMM4H9bWY', title: 'Qualifying Highlights | 2026 Barcelona-Catalunya Grand Prix', thumbnail: 'https://i.ytimg.com/vi/Q2fMM4H9bWY/hqdefault.jpg', published: '2026-06-13', views: '3.9M' },
