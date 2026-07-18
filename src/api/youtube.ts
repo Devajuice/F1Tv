@@ -77,7 +77,7 @@ export async function fetchAllHighlights(): Promise<Record<HighlightType, Youtub
         }
       }
     }
-    pageToken = page.nextPageToken;
+    pageToken = page.nextPageToken ?? '';
     if (!pageToken) break;
   }
 
