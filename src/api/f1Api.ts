@@ -35,6 +35,32 @@ export interface RaceResult {
   time?: string;
 }
 
+export interface QualifyingResult {
+  position: string;
+  driverId: string;
+  driverName: string;
+  driverNumber: string;
+  constructorId: string;
+  constructorName: string;
+  q1: string | null;
+  q2: string | null;
+  q3: string | null;
+  nationality: string;
+  dateOfBirth: string;
+}
+
+export interface DriverProfile {
+  driverId: string;
+  driverNumber: string;
+  firstName: string;
+  lastName: string;
+  nationality: string;
+  dateOfBirth: string;
+  url: string;
+  teamName: string;
+  teamId: string;
+}
+
 export interface Race {
   season: string;
   round: string;
@@ -170,6 +196,52 @@ export async function getConstructorStandings(season?: string, round?: string): 
       constructorName: c.name,
       points: s.points as string,
       wins: s.wins as string,
+    };
+  });
+}
+
+export async function getQualifyingResult(season: string, round: string): Promise<QualifyingResult[]> {
+  const res = await fetch(`${BASE_URL}/${season}/${round}/qualifying.json`);
+  const data = await res.json();
+  const race = data.MRData.RaceTable.Races[0];
+  if (!race) return [];
+  return (race.QualifyingResults ?? []).map((r: Record<string, unknown>) => {
+    const d = r.Driver as { driverId: string; givenName: string; familyName: string; permanentNumber?: string; nationality: string; dateOfBirth: string };
+    const c = r.Constructor as { constructorId: string; name: string };
+    return {
+      position: r.position as string,
+      driverId: d.driverId,
+      driverName: `${d.givenName} ${d.familyName}`,
+      driverNumber: d.permanentNumber ?? '',
+      constructorId: c.constructorId,
+      constructorName: c.name,
+      q1: r.Q1 as string | null,
+      q2: r.Q2 as string | null,
+      q3: r.Q3 as string | null,
+      nationality: d.nationality,
+      dateOfBirth: d.dateOfBirth,
+    };
+  });
+}
+
+export async function getDriverList(season?: string): Promise<DriverProfile[]> {
+  const year = season ?? new Date().getFullYear().toString();
+  const res = await fetch(`${BASE_URL}/${year}/driverStandings.json`);
+  const data = await res.json();
+  const list = data.MRData?.StandingsTable?.StandingsLists?.[0]?.DriverStandings ?? [];
+  return list.map((s: Record<string, unknown>) => {
+    const d = s.Driver as { driverId: string; givenName: string; familyName: string; permanentNumber?: string; nationality: string; dateOfBirth: string; url: string };
+    const c = (s.Constructors as Array<{ constructorId: string; name: string }>)[0];
+    return {
+      driverId: d.driverId,
+      driverNumber: d.permanentNumber ?? '',
+      firstName: d.givenName,
+      lastName: d.familyName,
+      nationality: d.nationality,
+      dateOfBirth: d.dateOfBirth,
+      url: d.url,
+      teamName: c?.name ?? 'Unknown',
+      teamId: c?.constructorId ?? 'unknown',
     };
   });
 }

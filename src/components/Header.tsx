@@ -1,5 +1,5 @@
 import { Link, useLocation } from 'react-router-dom';
-import { Film, Trophy, ArrowLeft, Play, Menu, X, Calendar, Flag, Newspaper } from 'lucide-react';
+import { Film, Trophy, ArrowLeft, Play, Menu, X, Calendar, Flag, Newspaper, Timer, Users } from 'lucide-react';
 import { useState } from 'react';
 
 interface NavLink {
@@ -25,6 +25,8 @@ export default function Header({ links, showBack, backTo = '/home', backLabel = 
     { to: '/standings', label: 'Standings', icon: <Trophy size={13} /> },
     { to: '/calendar', label: 'Calendar', icon: <Calendar size={13} /> },
     { to: '/results', label: 'Results', icon: <Flag size={13} /> },
+    { to: '/qualifying', label: 'Qualifying', icon: <Timer size={13} /> },
+    { to: '/drivers', label: 'Drivers', icon: <Users size={13} /> },
     { to: '/news', label: 'News', icon: <Newspaper size={13} /> },
   ];
 

@@ -1,14 +1,15 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Link } from 'react-router-dom';
-import { ArrowLeft, Play, Server, X, Wifi, WifiOff, Maximize, MonitorSmartphone, Keyboard, Timer, Map as MapIcon, Zap } from 'lucide-react';
+import { ArrowLeft, Play, Server, X, Wifi, WifiOff, Maximize, MonitorSmartphone, Keyboard, Timer, Map as MapIcon, Zap, Radio } from 'lucide-react';
 import { streamServers, type StreamServer } from '../data/streamServers';
 import { getSessions, getCurrentOrNextSession, getPositions, getIntervals, getDrivers, getCarData, getLocationData, getLaps } from '../api/openf1';
 import type { DriverInfo, CarDataEntry, LapEntry } from '../api/openf1';
 import LiveTimingTab from '../components/LiveTimingTab';
 import TrackMapTab from '../components/TrackMapTab';
 import FastestLapTab from '../components/FastestLapTab';
+import RaceControlFeed from '../components/RaceControlFeed';
 
-type LiveTab = 'timing' | 'map' | 'fastest';
+type LiveTab = 'timing' | 'map' | 'fastest' | 'control';
 
 export default function Stream() {
   const [activeServer, setActiveServer] = useState<StreamServer>(streamServers[0]);
@@ -170,6 +171,9 @@ export default function Stream() {
         case '3':
           setActiveTab('fastest');
           break;
+        case '4':
+          setActiveTab('control');
+          break;
       }
       resetControlsTimer();
     };
@@ -198,6 +202,7 @@ export default function Stream() {
     { key: 'timing', label: 'Live Timing', icon: <Timer size={13} /> },
     { key: 'map', label: 'Track Map', icon: <MapIcon size={13} /> },
     { key: 'fastest', label: 'Fastest Lap', icon: <Zap size={13} /> },
+    { key: 'control', label: 'Race Control', icon: <Radio size={13} /> },
   ];
 
   return (
@@ -232,7 +237,7 @@ export default function Stream() {
             { key: 'F', desc: 'Fullscreen' },
             { key: 'P', desc: 'Picture-in-Picture' },
             { key: 'H', desc: 'Toggle help' },
-            { key: '1/2/3', desc: 'Switch tab' },
+            { key: '1/2/3/4', desc: 'Switch tab' },
             { key: 'Esc', desc: 'Close modals' },
           ].map(({ key, desc }) => (
             <div key={key} style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '4px 0' }}>
@@ -386,6 +391,11 @@ export default function Stream() {
               <FastestLapTab
                 laps={laps}
                 drivers={drivers}
+              />
+            )}
+            {activeTab === 'control' && sessionKey && (
+              <RaceControlFeed
+                sessionKey={sessionKey}
               />
             )}
           </div>

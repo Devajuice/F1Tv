@@ -479,6 +479,24 @@ export async function getLaps(sessionKey: number): Promise<LapEntry[]> {
   return data.filter((l) => l.lap_duration !== null && !l.is_pit_out_lap);
 }
 
+// --- Race Control ---
+export interface RaceControlMessage {
+  date: string;
+  category: string;
+  flag: string | null;
+  message: string;
+  scope: string | null;
+  driver_number: number | null;
+  lap_number: number | null;
+  sector: number | null;
+}
+
+export async function getRaceControl(sessionKey: number): Promise<RaceControlMessage[]> {
+  const res = await fetchWithRetry(`${OPENF1_BASE}/race_control?session_key=${sessionKey}`);
+  if (!res.ok) return [];
+  return await res.json();
+}
+
 export function getTrackImageUrl(circuitShortName: string): string {
   const nameMap: Record<string, string> = {
     // OpenF1 circuit_short_name values

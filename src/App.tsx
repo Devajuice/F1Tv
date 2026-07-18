@@ -7,7 +7,10 @@ import Highlights from './pages/Highlights';
 import RaceCalendar from './pages/RaceCalendar';
 import RaceResults from './pages/RaceResults';
 import News from './pages/News';
+import QualifyingResults from './pages/QualifyingResults';
+import Drivers from './pages/Drivers';
 import NotFound from './pages/NotFound';
+import BackToTop from './components/BackToTop';
 
 function AnimatedRoutes() {
   const location = useLocation();
@@ -23,6 +26,8 @@ function AnimatedRoutes() {
         <Route path="/calendar" element={<RaceCalendar />} />
         <Route path="/results" element={<RaceResults />} />
         <Route path="/news" element={<News />} />
+        <Route path="/qualifying" element={<QualifyingResults />} />
+        <Route path="/drivers" element={<Drivers />} />
         <Route path="*" element={<NotFound />} />
       </Routes>
     </AnimatePresence>
@@ -33,6 +38,7 @@ function App() {
   return (
     <BrowserRouter>
       <AnimatedRoutes />
+      <BackToTop />
     </BrowserRouter>
   );
 }
