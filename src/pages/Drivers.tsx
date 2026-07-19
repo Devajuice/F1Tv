@@ -42,10 +42,19 @@ export default function Drivers() {
   const expandedRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
     Promise.all([getDriverList(), getDriverStandings()])
       .then(([d, s]) => { setDrivers(d); setStandings(s); })
       .catch(() => {})
-      .finally(() => setLoading(false));
+      .finally(() => {
+        setLoading(false);
+        interval = setInterval(() => {
+          getDriverStandings().then((s) => setStandings(s)).catch(() => {});
+        }, 180_000);
+      });
+
+    return () => { if (interval) clearInterval(interval); };
   }, []);
 
   useEffect(() => {

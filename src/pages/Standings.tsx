@@ -37,12 +37,22 @@ export default function Standings() {
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
+    let interval: ReturnType<typeof setInterval> | null = null;
+
+    const load = () => {
+      return Promise.all([getDriverStandings(), getConstructorStandings()]).then(([d, c]) => {
+        setDrivers(d);
+        setConstructors(c);
+        setLoading(false);
+      }).catch(() => setLoading(false));
+    };
+
     setLoading(true);
-    Promise.all([getDriverStandings(), getConstructorStandings()]).then(([d, c]) => {
-      setDrivers(d);
-      setConstructors(c);
-      setLoading(false);
-    }).catch(() => setLoading(false));
+    load().then(() => {
+      interval = setInterval(() => { load(); }, 180_000);
+    });
+
+    return () => { if (interval) clearInterval(interval); };
   }, []);
 
   const data = tab === 'drivers' ? drivers : constructors;

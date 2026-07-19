@@ -54,7 +54,12 @@ export default function Home() {
     getDriverStandings().then((s) => setDrivers(s.slice(0, 5))).catch(console.error);
     getConstructorStandings().then((s) => setConstructors(s.slice(0, 5))).catch(console.error);
 
-    return () => { if (interval) clearInterval(interval); };
+    const standingsInterval = setInterval(() => {
+      getDriverStandings().then((s) => setDrivers(s.slice(0, 5))).catch(() => {});
+      getConstructorStandings().then((s) => setConstructors(s.slice(0, 5))).catch(() => {});
+    }, 180_000);
+
+    return () => { if (interval) clearInterval(interval); clearInterval(standingsInterval); };
   }, []);
 
   const progress = getSessionProgress(sessions);
