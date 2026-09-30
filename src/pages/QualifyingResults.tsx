@@ -1,259 +1,289 @@
-import { useState, useEffect } from 'react';
-import { Timer, ChevronDown } from 'lucide-react';
-import { getSchedule, getQualifyingResult } from '../api/f1Api';
-import type { Race, QualifyingResult } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { useEffect, useMemo, useState } from 'react';
+import { StopCircle } from 'lucide-react';
+import {
+  getQualifyingResult,
+  getSchedule,
+  type QualifyingResult,
+  type Race,
+} from '../api/f1Api';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { getTeamColor } from '../data/teams';
+import { formatLapTime, surname } from '../lib/format';
+import { getRacesWithQualifying } from '../lib/races';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { RaceSelect } from '../components/ui/RaceSelect';
+import { Tabs } from '../components/ui/Tabs';
+import { DataTable, PositionCell, Td, Th, Tr } from '../components/ui/Table';
+import { TeamDot } from '../components/ui/Badge';
+import { Flag, TrackImage } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { SkeletonRows } from '../components/ui/Skeleton';
+import { cn } from '../lib/cn';
 
-const TEAM_COLORS: Record<string, string> = {
-  'Red Bull': '#3671C6', 'Mercedes': '#27F4D2', 'Ferrari': '#E8002D',
-  'McLaren': '#FF8000', 'Aston Martin': '#229971', 'Alpine': '#FF87BC',
-  'Williams': '#64C4FF', 'RB': '#6692FF', 'Kick Sauber': '#52E252',
-  'Haas': '#B6BABD',
+/** Session result is near-final within a couple of minutes. */
+const POLL = 30_000;
+
+type Phase = 'all' | 'q3' | 'q2' | 'q1';
+
+const PHASES: Array<{ value: Phase; label: string }> = [
+  { value: 'all', label: 'All' },
+  { value: 'q3', label: 'Q3' },
+  { value: 'q2', label: 'Q2 out' },
+  { value: 'q1', label: 'Q1 out' },
+];
+
+/** Which part of qualifying a driver reached. */
+function phaseOf(r: QualifyingResult): Exclude<Phase, 'all'> {
+  if (r.q3) return 'q3';
+  if (r.q2) return 'q2';
+  return 'q1';
+}
+
+const PHASE_TONE: Record<Exclude<Phase, 'all'>, string> = {
+  q3: 'border-purple-fp/40 bg-purple-fp/12 text-purple-fp',
+  q2: 'border-sodium/40 bg-sodium/12 text-sodium',
+  q1: 'border-white/12 bg-white/5 text-mist-400',
 };
 
-function getTeamColor(name: string): string {
-  return TEAM_COLORS[name] ?? '#737373';
-}
-
-function getBestSession(q1: string | null, q2: string | null, q3: string | null): string | null {
-  if (q3) return q3;
-  if (q2) return q2;
-  return q1;
-}
-
-function getRoundLabel(q1: string | null, q2: string | null, q3: string | null): { label: string; color: string } {
-  if (q3) return { label: 'Q3', color: '#a855f7' };
-  if (q2) return { label: 'Q2', color: '#eab308' };
-  if (q1) return { label: 'Q1', color: '#737373' };
-  return { label: '-', color: '#525252' };
-}
-
 export default function QualifyingResults() {
-  const [races, setRaces] = useState<Race[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string>('');
-  const [results, setResults] = useState<QualifyingResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resultLoading, setResultLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const [showQ, setShowQ] = useState<'all' | 'q1' | 'q2' | 'q3'>('all');
+  useDocumentTitle('Qualifying');
+  const [round, setRound] = useState('');
+  const [phase, setPhase] = useState<Phase>('all');
+
+  const { data: races, loading: loadingRaces } = useAsync<Race[]>(
+    () => getSchedule(),
+    [],
+  );
+
+  const withQuali = useMemo(() => getRacesWithQualifying(races ?? []), [races]);
 
   useEffect(() => {
-    getSchedule()
-      .then((all) => {
-        const completed = all.filter((r) => {
-          const refDate = r.qualifyingDate
-            ? new Date(r.qualifyingDate + (r.qualifyingTime ? `T${r.qualifyingTime}` : 'T14:00:00Z'))
-            : new Date(r.date + (r.time ? `T${r.time}` : 'T14:00:00Z'));
-          return refDate < new Date();
-        });
-        setRaces(completed);
-        if (completed.length > 0) setSelectedRound(completed[completed.length - 1].round);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (round || withQuali.length === 0) return;
+    setRound(withQuali[withQuali.length - 1].round);
+  }, [withQuali, round]);
 
-  useEffect(() => {
-    if (!selectedRound) return;
-    let cancelled = false;
+  const race = withQuali.find((r) => r.round === round) ?? null;
 
-    const fetch = () => {
-      setResultLoading(true);
-      getQualifyingResult(new Date().getFullYear().toString(), selectedRound)
-        .then((r) => { if (!cancelled) setResults(r); })
-        .catch(() => { if (!cancelled) setResults([]); })
-        .finally(() => { if (!cancelled) setResultLoading(false); });
-    };
+  const { data, loading, error, refresh, refreshing, lastFetchedAt } =
+    useAsync<QualifyingResult[]>(
+      async () => {
+        if (!race) return [];
+        return getQualifyingResult(race.season, race.round);
+      },
+      [race?.season, race?.round],
+      { intervalMs: POLL, enabled: Boolean(race) },
+    );
 
-    fetch();
-    const timer = setInterval(fetch, 30_000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [selectedRound]);
+  // Stable identity: `data ?? []` would allocate a new array every render and
+  // defeat every memo below.
+  const rows = useMemo(() => data ?? [], [data]);
+  const filtered = useMemo(
+    () => (phase === 'all' ? rows : rows.filter((r) => phaseOf(r) === phase)),
+    [rows, phase],
+  );
 
-  const selectedRace = races.find((r) => r.round === selectedRound);
-
-  const filtered = results.filter((r) => {
-    if (showQ === 'all') return true;
-    if (showQ === 'q3') return r.q3 !== null;
-    if (showQ === 'q2') return r.q2 !== null && !r.q3;
-    if (showQ === 'q1') return r.q1 !== null && !r.q2;
-    return true;
-  });
+  const pole = rows[0];
+  const counts = useMemo(
+    () => ({
+      all: rows.length,
+      q3: rows.filter((r) => phaseOf(r) === 'q3').length,
+      q2: rows.filter((r) => phaseOf(r) === 'q2').length,
+      q1: rows.filter((r) => phaseOf(r) === 'q1').length,
+    }),
+    [rows],
+  );
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        <h1 className="fade-in-up" style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Timer size={22} color="#e10600" /> Qualifying Results
-        </h1>
-
-        {/* Race Selector */}
-        <div className="fade-in-up" style={{ position: 'relative', marginBottom: 16 }}>
-          <button
-            onClick={() => {
-              setShowDropdown(!showDropdown);
-              if (!showDropdown) {
-                requestAnimationFrame(() => {
-                  const el = document.querySelector('[data-race-selector]');
-                  if (el) { const r = el.getBoundingClientRect(); setDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width }); }
-                });
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow="Saturday session"
+        title="Qualifying Results"
+        description="Three knockout phases. Q3 sets the grid; drivers eliminated in Q2 or Q1 start from the back."
+        actions={
+          <>
+            <div className="w-full min-w-56 sm:w-72">
+              <RaceSelect
+                races={withQuali}
+                value={round}
+                onChange={setRound}
+                label="Grand Prix"
+              />
+            </div>
+            <RefreshHint at={lastFetchedAt} onRefresh={refresh} busy={refreshing} />
+          </>
+        }
+      >
+        {rows.length > 0 && (
+          <div className="mt-6">
+            <Tabs
+              items={PHASES.map((p) => ({
+                ...p,
+                hint: counts[p.value] ? String(counts[p.value]) : undefined,
+              }))}
+              value={phase}
+              onChange={setPhase}
+              accent={(v) =>
+                v === 'q3'
+                  ? 'var(--color-purple-fp)'
+                  : v === 'q2'
+                    ? 'var(--color-sodium)'
+                    : v === 'q1'
+                      ? 'var(--color-mist-400)'
+                      : 'var(--color-f1-red)'
               }
-            }}
-            data-race-selector
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#d4d4d4', fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <span>{loading ? 'Loading...' : selectedRace ? `Round ${selectedRace.round}: ${selectedRace.raceName}` : 'Select a race'}</span>
-            <ChevronDown size={16} color="#737373" style={{ transform: showDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </button>
-        </div>
-
-        {/* Q Phase Tabs */}
-        <div style={{ display: 'flex', gap: 4, marginBottom: 16 }}>
-          {(['all', 'q3', 'q2', 'q1'] as const).map((q) => (
-            <button
-              key={q}
-              onClick={() => setShowQ(q)}
-              style={{
-                padding: '6px 14px', borderRadius: 8, fontSize: 12, fontWeight: 700,
-                cursor: 'pointer', border: 'none', fontFamily: 'inherit', transition: 'all 0.15s',
-                background: showQ === q ? 'rgba(225,6,0,0.15)' : 'rgba(255,255,255,0.03)',
-                color: showQ === q ? '#e10600' : '#737373',
-              }}
-            >
-              {q === 'all' ? 'All' : q.toUpperCase()}
-            </button>
-          ))}
-        </div>
-
-        {/* Results */}
-        {resultLoading ? (
-          <div>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 12, padding: '10px 14px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="skeleton skeleton-text" style={{ width: 16, height: 12 }} />
-                <div className="skeleton skeleton-circle" style={{ width: 28, height: 28 }} />
-                <div className="skeleton skeleton-text" style={{ flex: 1, height: 12, maxWidth: `${70 - i * 4}%` }} />
-              </div>
-            ))}
-          </div>
-        ) : filtered.length === 0 ? (
-          <div className="glass" style={{ borderRadius: 14, padding: 48, textAlign: 'center', color: '#737373' }}>
-            No qualifying results available
-          </div>
-        ) : (
-          <div className="glass scale-in" style={{ borderRadius: 14, overflow: 'hidden' }}>
-            <div className="hidden-mobile" style={{
-              display: 'flex', alignItems: 'center', padding: '10px 14px',
-              background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(12px)',
-              position: 'sticky', top: 0, zIndex: 2,
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <span style={{ ...thStyle, width: 36 }}>Pos</span>
-              <span style={{ ...thStyle, width: 32 }}></span>
-              <span style={{ ...thStyle, flex: 1, textAlign: 'left' }}>Driver</span>
-              <span style={{ ...thStyle, textAlign: 'center', width: 40 }}>Q</span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 80 }}>Q1</span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 80 }}>Q2</span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 80 }}>Q3</span>
-            </div>
-
-            <div style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-              {filtered.map((r, i) => {
-                const color = getTeamColor(r.constructorName);
-                const best = getBestSession(r.q1, r.q2, r.q3);
-                const round = getRoundLabel(r.q1, r.q2, r.q3);
-                return (
-                  <div key={r.driverId} className="stagger-in" style={{
-                    display: 'flex', alignItems: 'center', padding: '8px 14px',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
-                    borderBottom: '1px solid rgba(255,255,255,0.02)',
-                  }}>
-                    <div style={{ width: 36, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{ display: 'inline-block', width: 3, height: 16, borderRadius: 2, background: parseInt(r.position) <= 3 ? (r.position === '1' ? '#facc15' : color) : color, opacity: parseInt(r.position) <= 3 ? 1 : 0.4 }} />
-                      <span style={{ fontSize: 13, fontWeight: 700, color: r.position === '1' ? '#facc15' : '#d4d4d4', fontVariantNumeric: 'tabular-nums' }}>{r.position}</span>
-                    </div>
-                    <div style={{ width: 32, display: 'flex', justifyContent: 'center' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: '50%', background: color, display: 'inline-block' }} />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{r.driverName}</span>
-                        {r.driverNumber && <span style={{ fontSize: 10, color: '#525252' }}>#{r.driverNumber}</span>}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#525252', marginTop: 1 }}>{r.constructorName}</div>
-                    </div>
-                    <div className="hidden-mobile" style={{ width: 40, textAlign: 'center' }}>
-                      <span style={{ fontSize: 10, fontWeight: 700, color: round.color, background: `${round.color}15`, padding: '2px 6px', borderRadius: 4 }}>{round.label}</span>
-                    </div>
-                    {(['q1', 'q2', 'q3'] as const).map((q) => {
-                      const val = r[q];
-                      const isBest = best === val && val !== null;
-                      return (
-                        <div key={q} className="hidden-mobile" style={{ width: 80, textAlign: 'right' }}>
-                          <span style={{
-                            fontSize: 12, fontWeight: isBest ? 700 : 500,
-                            color: isBest ? '#a855f7' : val ? '#d4d4d4' : '#333',
-                            fontVariantNumeric: 'tabular-nums',
-                          }}>{val ?? '-'}</span>
-                        </div>
-                      );
-                    })}
-                  </div>
-                );
-              })}
-            </div>
+              aria-label="Qualifying phase"
+            />
           </div>
         )}
-      </div>
+      </PageHeader>
 
-      {/* Dropdown portal */}
-      {showDropdown && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowDropdown(false)} />
-          <div className="slide-down" style={{
-            position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width,
-            zIndex: 100, maxHeight: 300, overflowY: 'auto',
-            background: 'rgba(17,17,17,0.98)', backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 6,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-          }}>
-            {races.map((r) => (
-              <button
-                key={r.round}
-                onClick={() => { setSelectedRound(r.round); setShowDropdown(false); }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
-                  background: r.round === selectedRound ? 'rgba(225,6,0,0.1)' : 'transparent',
-                  border: 'none', color: r.round === selectedRound ? '#e10600' : '#d4d4d4',
-                  fontSize: 13, fontWeight: r.round === selectedRound ? 700 : 500,
-                  textAlign: 'left' as const, fontFamily: 'inherit',
-                }}
-              >
-                <span style={{ fontSize: 11, color: '#525252', minWidth: 24 }}>R{r.round}</span>
-                <span style={{ flex: 1 }}>{r.raceName}</span>
-              </button>
-            ))}
+      {/* ---- Pole sitter ---- */}
+      {pole && (
+        <Panel className="notched relative mb-4 overflow-hidden">
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            <TrackImage
+              circuit={race?.locality ?? ''}
+              round={race?.round}
+              className="size-16 sm:size-20"
+            />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-2 flex items-center gap-2">
+                <span className="accent-bar inline-block h-3 w-1.5" />
+                Pole position
+              </p>
+              <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
+                {pole.driverName}
+              </h2>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2.5 text-[12px] text-mist-400">
+                <TeamDot color={getTeamColor(pole.constructorName)} />
+                {pole.constructorName}
+                {race && (
+                  <>
+                    <span className="text-mist-600">·</span>
+                    <Flag country={race.country} />
+                    {race.raceName}
+                  </>
+                )}
+              </p>
+            </div>
+            <div className="shrink-0 rounded-md border border-purple-fp/30 bg-purple-fp/10 px-5 py-3 sm:text-right">
+              <p className="eyebrow mb-1.5 sm:justify-end">Q3 best</p>
+              <p className="num text-2xl leading-none font-bold text-purple-fp">
+                {formatLapTime(pole.q3 ?? pole.q2 ?? pole.q1)}
+              </p>
+            </div>
           </div>
-        </>
+        </Panel>
       )}
 
-      <Footer />
-    </PageWrapper>
+      {/* ---- Table ---- */}
+      <Panel flush>
+        {error ? (
+          <ErrorState message={error.message} onRetry={refresh} />
+        ) : loadingRaces || loading ? (
+          <div className="p-5 sm:p-6">
+            <SkeletonRows rows={10} />
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<StopCircle size={18} />}
+            title="No qualifying data"
+            description="Qualifying times appear here once the session has been published."
+          />
+        ) : (
+          <DataTable>
+            <thead>
+              <tr>
+                <Th className="w-14">Pos</Th>
+                <Th>Driver</Th>
+                <Th className="hidden sm:table-cell">Team</Th>
+                <Th className="hidden md:table-cell">Phase</Th>
+                <Th align="right">Q1</Th>
+                <Th align="right" className="hidden sm:table-cell">
+                  Q2
+                </Th>
+                <Th align="right">Q3</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {filtered.map((row) => {
+                const phase = phaseOf(row);
+                const best = row.q3 ?? row.q2 ?? row.q1;
+                return (
+                  <Tr key={row.driverId}>
+                    <Td>
+                      <PositionCell position={row.position} />
+                    </Td>
+                    <Td>
+                      <div className="flex items-center gap-3">
+                        <TeamDot color={getTeamColor(row.constructorName)} />
+                        <div className="min-w-0">
+                          <p className="truncate text-[13px] font-semibold text-mist-50">
+                            {surname(row.driverName)}
+                          </p>
+                          <p className="num mt-0.5 font-mono text-[10px] text-mist-500">
+                            #{row.driverNumber}
+                          </p>
+                        </div>
+                      </div>
+                    </Td>
+                    <Td className="hidden sm:table-cell">
+                      <span className="truncate text-[12px] text-mist-400">
+                        {row.constructorName}
+                      </span>
+                    </Td>
+                    <Td className="hidden md:table-cell">
+                      <span
+                        className={cn(
+                          'inline-flex items-center rounded-xs border px-1.5 py-0.5 font-mono text-[9px] font-semibold tracking-[0.1em] uppercase',
+                          PHASE_TONE[phase],
+                        )}
+                      >
+                        {phase.toUpperCase()}
+                      </span>
+                    </Td>
+                    <Lap time={row.q1} best={best === row.q1 && Boolean(row.q1)} />
+                    <Lap time={row.q2} best={best === row.q2 && Boolean(row.q2)} hideOnMobile />
+                    <Lap time={row.q3} best={best === row.q3 && Boolean(row.q3)} />
+                  </Tr>
+                );
+              })}
+            </tbody>
+          </DataTable>
+        )}
+      </Panel>
+    </PageContainer>
   );
 }
 
-const thStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.1em', color: '#737373',
-};
+function Lap({
+  time,
+  best,
+  hideOnMobile,
+}: {
+  time: string | null;
+  best: boolean;
+  hideOnMobile?: boolean;
+}) {
+  return (
+    <Td
+      align="right"
+      className={cn('whitespace-nowrap', hideOnMobile && 'hidden sm:table-cell')}
+    >
+      {time ? (
+        <span
+          className={cn(
+            'num text-[12.5px]',
+            best ? 'font-bold text-purple-fp' : 'text-mist-300',
+          )}
+        >
+          {formatLapTime(time)}
+        </span>
+      ) : (
+        <span className="text-mist-600">—</span>
+      )}
+    </Td>
+  );
+}

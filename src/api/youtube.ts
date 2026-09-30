@@ -43,6 +43,16 @@ function setCache(data: Record<HighlightType, YoutubeVideo[]>) {
   } catch {}
 }
 
+/** Normalise the several error shapes YouTube and the stub can return. */
+function describeError(payload: unknown, status: number): string {
+  const err = (payload as { error?: unknown } | null | undefined)?.error;
+  if (typeof err === 'string') return err;
+  if (err && typeof err === 'object' && 'message' in err) {
+    return String((err as { message: unknown }).message);
+  }
+  return `Highlights request failed (${status}).`;
+}
+
 export async function fetchAllHighlights(): Promise<Record<HighlightType, YoutubeVideo[]>> {
   const cached = getCached();
   if (cached) return cached.data;
@@ -59,12 +69,29 @@ export async function fetchAllHighlights(): Promise<Record<HighlightType, Youtub
     if (pageToken) params.set('pageToken', pageToken);
 
     const res = await fetch(`/api/youtube?${params}`);
-    if (!res.ok) break;
-    const data = await res.json();
+    let data: {
+      videos?: YoutubeVideo[];
+      nextPageToken?: string | null;
+      error?: unknown;
+    };
+    try {
+      data = await res.json();
+    } catch {
+      throw new Error(`Highlights request failed (${res.status}).`);
+    }
 
-    for (const v of data.videos || []) {
+    // A missing or invalid YOUTUBE_API_KEY used to end up here and return
+    // three empty lists, which the page then reported as "no highlights
+    // published yet" — pointing at the wrong cause. Surface it instead.
+    if (!res.ok) throw new Error(describeError(data, res.status));
+
+    for (const v of data.videos ?? []) {
+      if (!v) continue;
       if (EXCLUDE.test(v.title)) continue;
-      if (!v.published.startsWith(String(CURRENT_YEAR)) && !v.title.includes(String(CURRENT_YEAR))) continue;
+      const currentYear = String(CURRENT_YEAR);
+      if (!v.published?.startsWith(currentYear) && !v.title?.includes(currentYear)) {
+        continue;
+      }
       for (const type of ['race', 'sprint', 'qualifying'] as HighlightType[]) {
         if (TITLE_PATTERNS[type].test(v.title)) {
           result[type].push(v);
@@ -77,7 +104,7 @@ export async function fetchAllHighlights(): Promise<Record<HighlightType, Youtub
     );
     if (allFound) break;
 
-    pageToken = data.nextPageToken;
+    pageToken = data.nextPageToken ?? '';
     if (!pageToken) break;
   }
 

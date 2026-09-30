@@ -1,294 +1,341 @@
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { Flag, ChevronDown, TrendingUp, TrendingDown, Minus } from 'lucide-react';
-import { getSchedule, getRaceResult } from '../api/f1Api';
-import type { Race } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { useEffect, useMemo, useState } from 'react';
+import { useSearchParams } from 'react-router-dom';
+import { Minus, TrendingDown, TrendingUp, Zap } from 'lucide-react';
+import {
+  getRaceResult,
+  getSprintResult,
+  getSchedule,
+  type Race,
+  type RaceResult,
+} from '../api/f1Api';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { getTeamColor } from '../data/teams';
+import { formatNumber, positionDelta, surname } from '../lib/format';
+import { getCompletedRaces, getRaceStart } from '../lib/races';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { RaceSelect } from '../components/ui/RaceSelect';
+import { Tabs } from '../components/ui/Tabs';
+import { DataTable, PositionCell, Td, Th, Tr } from '../components/ui/Table';
+import { TeamDot } from '../components/ui/Badge';
+import { StatusPill } from '../components/ui/StatusPill';
+import { Flag, TrackImage } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { SkeletonRows } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { cn } from '../lib/cn';
 
-const TEAM_COLORS: Record<string, string> = {
-  'Red Bull': '#3671C6', 'Mercedes': '#27F4D2', 'Ferrari': '#E8002D',
-  'McLaren': '#FF8000', 'Aston Martin': '#229971', 'Alpine': '#FF87BC',
-  'Williams': '#64C4FF', 'RB': '#6692FF', 'Kick Sauber': '#52E252',
-  'Haas': '#B6BABD',
-};
+/** Results settle within a few minutes of the flag. */
+const POLL = 60_000;
 
-function getTeamColor(name: string): string {
-  return TEAM_COLORS[name] ?? '#737373';
-}
-
-function getPositionChange(grid: string, position: string): { delta: number; label: string } {
-  const g = parseInt(grid);
-  const p = parseInt(position);
-  if (isNaN(g) || isNaN(p) || g === 0) return { delta: 0, label: '-' };
-  const diff = g - p;
-  return { delta: diff, label: diff > 0 ? `+${diff}` : diff < 0 ? `${diff}` : '-' };
-}
-
-function getStatusStyle(status: string): { color: string; bg: string } {
-  if (status === 'Finished' || status.includes('+')) return { color: '#22c55e', bg: 'rgba(34,197,94,0.08)' };
-  if (status.includes('DSQ') || status.includes('Disqualified')) return { color: '#ef4444', bg: 'rgba(239,68,68,0.08)' };
-  if (status.includes('DNF') || status.includes('Did not finish')) return { color: '#f97316', bg: 'rgba(249,115,22,0.08)' };
-  if (status.includes('DNS') || status.includes('Did not start')) return { color: '#ef4444', bg: 'rgba(239,68,68,0.08)' };
-  if (status.includes('Retired') || status.includes('Engine') || status.includes('Gearbox') || status.includes('Transmission') || status.includes('Suspension') || status.includes('Brakes') || status.includes('Collision') || status.includes('Accident') || status.includes('Overheating')) {
-    return { color: '#f97316', bg: 'rgba(249,115,22,0.08)' };
-  }
-  return { color: '#737373', bg: 'transparent' };
-}
+type Tab = 'race' | 'sprint';
 
 export default function RaceResults() {
-  const [races, setRaces] = useState<Race[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string>('');
-  const [result, setResult] = useState<Race | null>(null);
-  const [loading, setLoading] = useState(true);
-  const [resultLoading, setResultLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-  const selectorRef = useRef<HTMLDivElement>(null);
+  useDocumentTitle('Race Results');
+  const [params, setParams] = useSearchParams();
+  const [tab, setTab] = useState<Tab>('race');
+  const [round, setRound] = useState<string>('');
 
-  const updateDropdownPos = useCallback(() => {
-    if (selectorRef.current) {
-      const rect = selectorRef.current.getBoundingClientRect();
-      setDropdownPos({ top: rect.bottom + 4, left: rect.left, width: rect.width });
+  /* --- Which rounds are selectable, and which had a sprint? --- */
+  const { data: races, loading: loadingRaces } = useAsync<Race[]>(
+    () => getSchedule(),
+    [],
+  );
+
+  const completed = useMemo(() => getCompletedRaces(races ?? []), [races]);
+
+  // Default to the most recent completed round, but honour ?round= from the
+  // calendar page.
+  useEffect(() => {
+    if (round || completed.length === 0) return;
+    const requested = params.get('round');
+    const target =
+      requested && completed.some((r) => r.round === requested)
+        ? requested
+        : completed[completed.length - 1].round;
+    setRound(target);
+    if (requested) {
+      params.delete('round');
+      setParams(params, { replace: true });
     }
-  }, []);
+  }, [completed, round, params, setParams]);
 
-  useEffect(() => {
-    if (showDropdown) updateDropdownPos();
-  }, [showDropdown, updateDropdownPos]);
+  const race = completed.find((r) => r.round === round) ?? null;
 
-  useEffect(() => {
-    getSchedule()
-      .then((all) => {
-        const completed = all.filter((r) => {
-          const raceDate = new Date(r.date + (r.time ? `T${r.time}` : 'T14:00:00Z'));
-          return raceDate < new Date();
-        });
-        setRaces(completed);
-        if (completed.length > 0) {
-          setSelectedRound(completed[completed.length - 1].round);
-        }
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+  /* --- Data for the active tab. Only the visible one is requested, so a
+  sprint weekend costs exactly one extra request. --- */
+  const raceData = useAsync<RaceResult[]>(
+    async () => {
+      if (!race) return [];
+      const full = await getRaceResult(race.season, race.round);
+      return full?.results ?? [];
+    },
+    [race?.season, race?.round],
+    { intervalMs: POLL, enabled: Boolean(race) && tab === 'race' },
+  );
 
-  useEffect(() => {
-    if (!selectedRound) return;
-    setResultLoading(true);
-    getRaceResult(new Date().getFullYear().toString(), selectedRound)
-      .then(setResult)
-      .catch(() => setResult(null))
-      .finally(() => setResultLoading(false));
-  }, [selectedRound]);
+  const sprintData = useAsync<RaceResult[]>(
+    async () => {
+      if (!race) return [];
+      return getSprintResult(race.season, race.round);
+    },
+    [race?.season, race?.round],
+    { intervalMs: POLL, enabled: Boolean(race) && tab === 'sprint' },
+  );
 
-  const selectedRace = races.find((r) => r.round === selectedRound);
-  const results = result?.results ?? [];
+  const active = tab === 'sprint' ? sprintData : raceData;
+  const rows = useMemo(() => active.data ?? [], [active.data]);
+  const isSprint = tab === 'sprint';
+
+  const fastest = useMemo(
+    () => rows.find((r) => r.fastestLap?.rank === '1'),
+    [rows],
+  );
+
+  const podium = rows.filter((r) => Number(r.position) <= 3);
+  const winner = rows[0];
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        <h1 className="fade-in-up" style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Flag size={22} color="#e10600" /> Race Results
-        </h1>
-
-        {/* Race Selector */}
-        <div className="fade-in-up" ref={selectorRef} style={{ position: 'relative', marginBottom: 20 }}>
-          <button
-            onClick={() => setShowDropdown(!showDropdown)}
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#d4d4d4', fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
-              transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
-          >
-            <span>{loading ? 'Loading...' : selectedRace ? `Round ${selectedRace.round}: ${selectedRace.raceName}` : 'Select a race'}</span>
-            <ChevronDown size={16} color="#737373" style={{ transform: showDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </button>
-        </div>
-
-        {/* Results */}
-        {resultLoading ? (
-          <div>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 12, padding: '10px 14px', marginBottom: 4, display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="skeleton skeleton-text" style={{ width: 16, height: 12 }} />
-                <div className="skeleton skeleton-circle" style={{ width: 28, height: 28 }} />
-                <div className="skeleton skeleton-text" style={{ flex: 1, height: 12, maxWidth: `${70 - i * 4}%` }} />
-                <div className="skeleton skeleton-text" style={{ width: 40, height: 12 }} />
-              </div>
-            ))}
-          </div>
-        ) : results.length === 0 ? (
-          <div className="glass" style={{ borderRadius: 14, padding: 48, textAlign: 'center', color: '#737373' }}>
-            No results available for this race
-          </div>
-        ) : (
-          <div className="glass scale-in" style={{ borderRadius: 14, overflow: 'hidden' }}>
-            {/* Header */}
-            <div className="hidden-mobile" style={{
-              display: 'flex', alignItems: 'center', padding: '10px 14px',
-              background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(12px)',
-              position: 'sticky', top: 0, zIndex: 2,
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <span style={{ ...thStyle, width: 36 }}>Pos</span>
-              <span style={{ ...thStyle, width: 32 }}></span>
-              <span style={{ ...thStyle, flex: 1, textAlign: 'left' }}>Driver</span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 50 }}>Grid</span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 40 }}></span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 50 }}>Pts</span>
-              <span style={{ ...thStyle, textAlign: 'right', width: 90 }}>Status</span>
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow="Classification"
+        title="Race Results"
+        description="Official finishing order with grid position, positions gained, points and race status."
+        actions={
+          <>
+            <div className="w-full min-w-56 sm:w-72">
+              <RaceSelect races={completed} value={round} onChange={setRound} />
             </div>
-
-            {/* Rows */}
-            <div style={{ maxHeight: '65vh', overflowY: 'auto' }}>
-              {results.map((r, i) => {
-                const color = getTeamColor(r.constructorName);
-                const posChange = getPositionChange(r.grid, r.position);
-                const statusStyle = getStatusStyle(r.status);
-                return (
-                  <div key={`${r.driverId}-${r.position}`} className="stagger-in" style={{
-                    display: 'flex', alignItems: 'center', padding: '8px 14px',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
-                    borderBottom: '1px solid rgba(255,255,255,0.02)',
-                  }}>
-                    {/* Position */}
-                    <div style={{ width: 36, display: 'flex', alignItems: 'center', gap: 4 }}>
-                      <span style={{
-                        display: 'inline-block', width: 3, height: 16, borderRadius: 2,
-                        background: parseInt(r.position) <= 3 ? (r.position === '1' ? '#facc15' : color) : color,
-                        opacity: parseInt(r.position) <= 3 ? 1 : 0.4,
-                      }} />
-                      <span style={{
-                        fontSize: 13, fontWeight: 700,
-                        color: r.position === '1' ? '#facc15' : '#d4d4d4',
-                        fontVariantNumeric: 'tabular-nums',
-                      }}>{r.positionText}</span>
-                    </div>
-
-                    {/* Team colour dot */}
-                    <div style={{ width: 32, display: 'flex', justifyContent: 'center' }}>
-                      <span style={{
-                        width: 8, height: 8, borderRadius: '50%',
-                        background: color, display: 'inline-block',
-                      }} />
-                    </div>
-
-                    {/* Driver */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                        <span style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                          {r.driverName}
-                        </span>
-                        {r.driverNumber && (
-                          <span style={{ fontSize: 10, color: '#525252' }}>#{r.driverNumber}</span>
-                        )}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#525252', marginTop: 1 }}>{r.constructorName}</div>
-                    </div>
-
-                    {/* Grid */}
-                    <div className="hidden-mobile" style={{ width: 50, textAlign: 'right', fontSize: 12, color: '#737373', fontVariantNumeric: 'tabular-nums' }}>
-                      {r.grid}
-                    </div>
-
-                    {/* Position change */}
-                    <div className="hidden-mobile" style={{ width: 40, textAlign: 'right', display: 'flex', justifyContent: 'flex-end' }}>
-                      {posChange.delta > 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, fontWeight: 700, color: '#22c55e' }}>
-                          <TrendingUp size={10} /> {posChange.label}
-                        </span>
-                      )}
-                      {posChange.delta < 0 && (
-                        <span style={{ display: 'flex', alignItems: 'center', gap: 1, fontSize: 11, fontWeight: 700, color: '#ef4444' }}>
-                          <TrendingDown size={10} /> {posChange.label}
-                        </span>
-                      )}
-                      {posChange.delta === 0 && (
-                        <Minus size={12} color="#525252" />
-                      )}
-                    </div>
-
-                    {/* Points */}
-                    <div style={{ width: 50, textAlign: 'right', fontSize: 13, fontWeight: 700, color: parseFloat(r.points) > 0 ? '#fff' : '#525252', fontVariantNumeric: 'tabular-nums' }}>
-                      {r.points}
-                    </div>
-
-                    {/* Status */}
-                    <div className="hidden-mobile" style={{ width: 90, textAlign: 'right' }}>
-                      <span style={{
-                        fontSize: 11, fontWeight: 600,
-                        color: statusStyle.color,
-                        background: statusStyle.bg,
-                        padding: '2px 6px', borderRadius: 4,
-                      }}>
-                        {r.time ? `${r.time}` : r.status}
-                      </span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
+            <RefreshHint
+              at={active.lastFetchedAt}
+              onRefresh={active.refresh}
+              busy={active.refreshing}
+            />
+          </>
+        }
+      >
+        {race && (
+          <div className="mt-6">
+            <Tabs
+              items={[
+                { value: 'race', label: 'Grand Prix' },
+                { value: 'sprint', label: 'Sprint' },
+              ]}
+              value={tab}
+              onChange={setTab}
+              accent={(v) =>
+                v === 'sprint' ? 'var(--color-purple-fp)' : 'var(--color-f1-red)'
+              }
+              aria-label="Session type"
+            />
           </div>
         )}
-      </div>
+      </PageHeader>
 
-      {/* Dropdown portal - renders outside all stacking contexts */}
-      {showDropdown && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowDropdown(false)} />
-          <div className="slide-down" style={{
-            position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width,
-            zIndex: 100, maxHeight: 300, overflowY: 'auto',
-            background: 'rgba(17,17,17,0.98)', backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 6,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-          }}>
-            {races.length === 0 ? (
-              <div style={{ padding: 16, textAlign: 'center', color: '#737373', fontSize: 13 }}>
-                No completed races yet
-              </div>
-            ) : (
-              races.map((r) => (
-                <button
-                  key={r.round}
-                  onClick={() => { setSelectedRound(r.round); setShowDropdown(false); }}
-                  style={{
-                    width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
-                    background: r.round === selectedRound ? 'rgba(225,6,0,0.1)' : 'transparent',
-                    border: 'none', color: r.round === selectedRound ? '#e10600' : '#d4d4d4',
-                    fontSize: 13, fontWeight: r.round === selectedRound ? 700 : 500,
-                    textAlign: 'left' as const, fontFamily: 'inherit', transition: 'all 0.1s',
-                  }}
-                  onMouseEnter={(e) => { if (r.round !== selectedRound) e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                  onMouseLeave={(e) => { if (r.round !== selectedRound) e.currentTarget.style.background = 'transparent'; }}
-                >
-                  <span style={{ fontSize: 11, color: '#525252', minWidth: 24 }}>R{r.round}</span>
-                  <span style={{ flex: 1 }}>{r.raceName}</span>
-                  <span style={{ fontSize: 11, color: '#525252' }}>
-                    {new Date(r.date).toLocaleDateString('en-US', { month: 'short', day: 'numeric' })}
-                  </span>
-                </button>
-              ))
-            )}
+      {/* ---- Event summary ---- */}
+      {race && (
+        <Panel className="notched relative mb-4 overflow-hidden">
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            <TrackImage circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-2 flex items-center gap-2">
+                <span className="accent-bar inline-block h-3 w-1.5" />
+                {isSprint ? 'Sprint' : 'Grand Prix'} · Round {Number(race.round)}
+              </p>
+              <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
+                {race.raceName}
+              </h2>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2.5 text-[12px] text-mist-400">
+                <Flag country={race.country} />
+                {race.circuitName}
+                <span className="text-mist-600">·</span>
+                <span className="font-mono">
+                  {getRaceStart(race)?.toLocaleDateString()}
+                </span>
+              </p>
+            </div>
           </div>
-        </>
+        </Panel>
       )}
 
-      <Footer />
-    </PageWrapper>
+      {/* ---- Podium ---- */}
+      {rows.length > 0 && (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          {podium.map((row, i) => {
+            const color = getTeamColor(row.constructorName);
+            const delta = positionDelta(row.grid, row.position);
+            return (
+              <Panel key={row.driverId} className={cn('relative overflow-hidden', i === 0 && 'sm:order-first')}>
+                {i === 0 && <span aria-hidden className="accent-bar absolute inset-y-0 left-0 w-1" />}
+                <div className="flex items-center gap-3.5">
+                  <PositionCell position={row.positionText} />
+                  <div className="min-w-0 flex-1">
+                    <p className="truncate text-[14px] font-semibold text-mist-50">
+                      {surname(row.driverName)}
+                    </p>
+                    <p className="mt-1 flex items-center gap-1.5 text-[11px] text-mist-500">
+                      <TeamDot color={color} />
+                      <span className="truncate">{row.constructorName}</span>
+                    </p>
+                  </div>
+                  <div className="shrink-0 text-right">
+                    <p className="num text-lg leading-none font-bold text-mist-50">
+                      {formatNumber(row.points)}
+                    </p>
+                    <p className="num mt-1 font-mono text-[9.5px] text-mist-500">PTS</p>
+                  </div>
+                </div>
+                <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                  <span className="font-mono text-[10px] text-mist-500">
+                    Grid {row.grid}
+                  </span>
+                  <DeltaBadge delta={delta} />
+                </div>
+              </Panel>
+            );
+          })}
+        </div>
+      )}
+
+      {/* ---- Full classification ---- */}
+      <Panel flush>
+        <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+          <div className="flex flex-wrap items-center justify-between gap-3">
+            <div>
+              <p className="eyebrow mb-1.5">Full classification</p>
+              {winner && (
+                <p className="text-[13px] text-mist-300">
+                  Winner:{' '}
+                  <span className="font-semibold text-mist-50">
+                    {winner.driverName}
+                  </span>{' '}
+                  <span className="text-mist-500">({winner.constructorName})</span>
+                </p>
+              )}
+            </div>
+            {fastest?.fastestLap && (
+              <span className="inline-flex items-center gap-1.5 rounded-xs border border-purple-fp/35 bg-purple-fp/10 px-2 py-1 font-mono text-[9.5px] tracking-[0.1em] text-purple-fp uppercase">
+                <Zap size={10} />
+                Fastest lap {fastest.fastestLap.time} · {surname(fastest.driverName)}
+              </span>
+            )}
+          </div>
+        </div>
+
+        {active.error ? (
+          <ErrorState message={active.error.message} onRetry={active.refresh} />
+        ) : loadingRaces || active.loading ? (
+          <div className="p-5 sm:p-6">
+            <SkeletonRows rows={10} />
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={isSprint ? <Zap size={18} /> : undefined}
+            title={
+              isSprint
+                ? 'No Sprint at this round'
+                : 'No classification yet'
+            }
+            description={
+              isSprint
+                ? 'Not every Grand Prix weekend has a Sprint. Switch to the Grand Prix tab for the main race.'
+                : 'Results appear once the session has finished and the timing data is published.'
+            }
+            action={
+              isSprint && (
+                <Button variant="secondary" size="sm" onClick={() => setTab('race')}>
+                  View Grand Prix result
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <DataTable>
+            <thead>
+              <tr>
+                <Th className="w-14">Pos</Th>
+                <Th>Driver</Th>
+                <Th align="center" className="hidden sm:table-cell">
+                  Grid
+                </Th>
+                <Th align="center" className="hidden sm:table-cell">
+                  Δ
+                </Th>
+                <Th align="right">Pts</Th>
+                <Th className="hidden md:table-cell">Status</Th>
+              </tr>
+            </thead>
+            <tbody>
+              {rows.map((row) => (
+                <Tr key={`${row.driverId}-${row.position}`}>
+                  <Td>
+                    <PositionCell position={row.positionText} />
+                  </Td>
+                  <Td>
+                    <div className="flex items-center gap-3">
+                      <TeamDot color={getTeamColor(row.constructorName)} />
+                      <div className="min-w-0">
+                        <p className="truncate text-[13px] font-semibold text-mist-50">
+                          {row.driverName}
+                        </p>
+                        <p className="num mt-0.5 font-mono text-[10px] text-mist-500">
+                          #{row.driverNumber} · {row.constructorName}
+                        </p>
+                      </div>
+                    </div>
+                  </Td>
+                  <Td align="center" className="hidden sm:table-cell">
+                    <span className="num text-[12.5px] text-mist-400">{row.grid}</span>
+                  </Td>
+                  <Td align="center" className="hidden sm:table-cell">
+                    <DeltaBadge delta={positionDelta(row.grid, row.position)} compact />
+                  </Td>
+                  <Td align="right">
+                    <span
+                      className={cn(
+                        'num text-[13.5px] font-semibold',
+                        Number(row.points) > 0 ? 'text-mist-50' : 'text-mist-600',
+                      )}
+                    >
+                      {formatNumber(row.points)}
+                    </span>
+                  </Td>
+                  <Td className="hidden md:table-cell">
+                    <StatusPill status={row.status} time={row.time} />
+                  </Td>
+                </Tr>
+              ))}
+            </tbody>
+          </DataTable>
+        )}
+      </Panel>
+    </PageContainer>
   );
 }
 
-const thStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.1em', color: '#737373',
-};
+function DeltaBadge({ delta, compact }: { delta: number; compact?: boolean }) {
+  if (delta === 0) {
+    return (
+      <span className="inline-flex items-center gap-1 font-mono text-[10.5px] text-mist-600">
+        <Minus size={10} />
+        {!compact && <span>No change</span>}
+      </span>
+    );
+  }
+  const gained = delta > 0;
+  return (
+    <span
+      className={cn(
+        'inline-flex items-center gap-1 font-mono font-semibold',
+        compact ? 'text-[11.5px]' : 'text-[12px]',
+        gained ? 'text-turf' : 'text-f1-red-bright',
+      )}
+      title={gained ? 'Positions gained' : 'Positions lost'}
+    >
+      {gained ? <TrendingUp size={compact ? 11 : 12} /> : <TrendingDown size={compact ? 11 : 12} />}
+      {gained ? '+' : ''}
+      {delta}
+    </span>
+  );
+}

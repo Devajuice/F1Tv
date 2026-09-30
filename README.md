@@ -1,61 +1,69 @@
 # F1TV
 
-A Formula 1 streaming and information website built with React, TypeScript, and Vite. Watch live F1 races from multiple free servers, track sessions with weather data, view highlights, standings, race results, and the full season calendar.
+A Formula 1 streaming and information site built with React, TypeScript and Vite. Watch live sessions from multiple public servers, follow live timing and weather, and dig into the championship, results, grid, news and highlights.
 
 ## Features
 
-- **Live Streaming** — 9 free stream servers with online/offline detection, server switching, and keyboard shortcuts
-- **Live Session Indicator** — Red pulse badge on the F1TV logo when a session is currently in progress
-- **Push Notifications** — Browser notifications when a session is about to start or goes live
-- **Session Widget** — Auto-progressing pill showing the current/next session with live countdown
-- **Weather** — Real-time track weather (temperature, humidity, wind, rain) during race weekends
-- **Race Calendar** — Full season schedule with circuit images, local times, countdown to next race, and ICS calendar export
-- **Race Results** — Dropdown race selector with finishing order, position changes, team colors, and status
-- **Qualifying Results** — Q1/Q2/Q3 breakdown with phase filter and race selector (auto-refreshes every 30s)
-- **Starting Grid** — Qualifying-based grid lineup with real track formation (staggered on desktop, single-column on mobile), auto-refreshes every 30s
-- **Session Schedule** — Practice, qualifying, sprint, and race times displayed in your local timezone (includes race session)
-- **Championship Standings** — Driver and constructor standings with leader card, bar chart, and full table
-- **Driver Profiles** — Grid of all drivers with expandable detail cards (team, nationality, age, stats, Wikipedia)
-- **Highlights** — Race, Sprint, and Qualifying highlights from the official F1 YouTube channel
-- **F1 News** — Live RSS feed from Motorsport.com, Autosport, and The Race
-- **PWA Support** — Service worker with caching for offline-capable installation
-- **Back to Top** — Floating scroll button for quick navigation
-- **Mobile Responsive** — Fully responsive across all screen sizes
-- **Dark Glassmorphism UI** — Modern glass-effect design with smooth animations
+- **Live streaming** — 9 public stream servers with reachability checks, server switching, a stuck-player watchdog and keyboard shortcuts
+- **Live session state** — shared across every page via one OpenF1 session poll, with a progress bar and countdown
+- **Opt-in session alerts** — browser notification 5 minutes before a session and again when it goes live, deduped per session
+- **Live weather** — air and track temperature, humidity, wind and rainfall for the current session, with a wet-track call
+- **Dashboard** — next race countdown, championship snapshot, session queue, weather and recent news on one screen
+- **Race calendar** — full season schedule with circuit imagery, local times, live/finished/upcoming status and `.ics` export
+- **Race results** — Grand Prix *and* Sprint classifications, with grid position, positions gained, points and status
+- **Qualifying results** — Q1/Q2/Q3 breakdown with a phase filter; only the tab you're viewing is fetched
+- **Starting grid** — qualifying order drawn as the staggered two-column track formation, collapsing to a list on mobile
+- **Weekend schedule** — every session of an upcoming weekend in your local timezone
+- **Standings** — driver and constructor tables, selectable by round, with points bars
+- **Drivers** — entry list with search, sorting, team livery accents and age
+- **Highlights** — race, Sprint and qualifying videos from the official F1 YouTube channel
+- **News** — Motorsport.com, Autosport and The Race feeds, filterable by source
+- **PWA** — installable manifest, offline page, and a service worker that caches the shell but never caches API or stream responses
+- **Per-route code splitting** — every page is a separate lazy chunk
 
 ## Tech Stack
 
 - **React 19** + TypeScript
-- **Vite** (build tool)
-- **Tailwind CSS v4** (`@tailwindcss/vite`)
-- **React Router** (client-side routing)
-- **Lucide React** (icons)
+- **Vite 8** (build tool and dev server, with the `/api/*` proxies)
+- **Tailwind CSS v4** (`@tailwindcss/vite`, theme declared in CSS)
+- **React Router 7** (client-side routing, lazy routes)
 - **Framer Motion** (animations)
-- **date-fns** (date utilities)
-- **clsx** (conditional classNames)
-- **Geist** font (Google Fonts)
+- **Lucide React** (icons)
+- **clsx** (conditional class names)
+- **Geist / Geist Mono / Archivo** (Google Fonts)
+
+Date and number formatting uses the native `Intl` API with module-level cached
+formatters, so there's no date library in the bundle.
 
 ## APIs Used
 
-- [OpenF1](https://openf1.org/) — Session schedules and live weather data
-- [Jolpica F1 API](https://api.jolpi.ca/ergast/f1/) — Driver and constructor championship standings, race schedule, race results, qualifying results, grid lineup, practice schedules, and driver profiles
-- [RSS2JSON](https://api.rss2json.com/) — RSS-to-JSON proxy for F1 news feeds
-- [YouTube](https://www.youtube.com/@Formula1) — Race, sprint, and qualifying highlights (curated video IDs)
+| Source | Used for |
+|---|---|
+| [OpenF1](https://openf1.org/) | Session schedules, session progress, live weather |
+| [Jolpica](https://api.jolpi.ca/ergast/f1/) | Schedule, standings, race/Sprint/qualifying results, grid, weekend sessions, driver list |
+| [RSS2JSON](https://api.rss2json.com/) | RSS-to-JSON proxy for the news feeds |
+| [YouTube Data API](https://developers.google.com/youtube/) | Highlights, via the `api/youtube.js` serverless function |
+
+### Environment
+
+The only secret is the YouTube key, read by `api/youtube.js` on the server:
+
+```bash
+YOUTUBE_API_KEY=your_key_here
+```
+
+Highlights degrade to an empty state without it. In `npm run dev`, Vite serves a
+stub at `/api/youtube` so the rest of the page still works; run `vercel dev` for
+live data. Everything else talks to public, key-free endpoints.
 
 ## Getting Started
 
 ```bash
-# Install dependencies
-npm install
-
-# Start dev server
-npm run dev
-
-# Build for production
-npm run build
-
-# Lint
-npm run lint
+npm install     # install dependencies
+npm run dev     # dev server with API proxies
+npm run build   # typecheck, then production build
+npm run lint    # oxlint
+npm run preview # serve the production build
 ```
 
 ## Project Structure
@@ -63,46 +71,64 @@ npm run lint
 ```
 src/
 ├── api/
-│   ├── openf1.ts        # Session schedules and weather data
-│   ├── f1Api.ts         # Standings, schedule, race/sprint/qualifying results, grid, driver profiles
-│   └── news.ts          # RSS feed fetching via rss2json.com proxy
+│   ├── openf1.ts        # sessions, progress, weather, fallbacks + retry on 429
+│   ├── f1Api.ts         # Jolpica: shared request cache, in-flight dedupe, per-endpoint TTL
+│   ├── news.ts          # RSS2JSON feeds
+│   └── youtube.ts       # highlight queries + localStorage cache
 ├── components/
-│   ├── Header.tsx        # Responsive nav bar with live session indicator
-│   ├── Footer.tsx        # Attribution and disclaimer
-│   ├── PageWrapper.tsx   # Animated page transitions
-│   └── BackToTop.tsx     # Floating scroll-to-top button
+│   ├── ui/              # design-system primitives (Button, Panel, Table, Tabs, Modal, …)
+│   ├── Header.tsx       # grouped nav, live ticker, notification toggle, mobile drawer
+│   ├── Footer.tsx
+│   ├── Layout.tsx       # page shell + immersive full-bleed shell for /stream
+│   ├── BackToTop.tsx
+│   └── RouteFallback.tsx
+├── context/
+│   ├── SessionContext.tsx      # one session poll shared by the whole app
+│   └── NotificationsContext.tsx
 ├── hooks/
-│   └── useSessionNotifications.ts # Push notifications for session starts
+│   ├── useAsync.ts       # polling, refresh, cancellation, staleness
+│   └── useDocumentTitle.ts
 ├── data/
-│   ├── streamServers.ts  # Stream server URLs
-│   └── teams.ts          # Team names and colors
-├── pages/
-│   ├── Home.tsx          # Session widget, weather, quick standings, upcoming races
-│   ├── Stream.tsx        # Iframe player with server selector
-│   ├── Standings.tsx     # Driver & constructor tabs with charts
-│   ├── Highlights.tsx    # Race, sprint, qualifying highlight tabs
-│   ├── RaceCalendar.tsx  # Full season schedule with ICS export
-│   ├── RaceResults.tsx   # Race selector with results table
-│   ├── QualifyingResults.tsx # Q1/Q2/Q3 results with auto-refresh
-│   ├── GridLineup.tsx    # Starting grid from qualifying data
-│   ├── PracticeSchedule.tsx # Session times for any race weekend
-│   ├── Drivers.tsx       # Driver grid with expandable profile cards
-│   ├── News.tsx          # Live F1 news feed
-│   └── NotFound.tsx      # 404 page
-├── App.tsx               # Router configuration + notifications
-├── main.tsx              # Entry point + service worker registration
-└── index.css             # Tailwind, animations, glass styles
+│   ├── teams.ts         # canonical constructor registry (colours, aliases)
+│   ├── sessions.ts      # session badges, colours, weekend order
+│   ├── tracks.ts        # circuit imagery
+│   └── streamServers.ts
+├── lib/
+│   ├── format.ts        # Intl-backed date, number, flag and name formatters
+│   ├── races.ts         # race status and schedule selectors
+│   └── cn.ts
+├── pages/               # one lazily-loaded chunk per route
+└── index.css            # Tailwind theme + design system
 ```
 
-## Keyboard Shortcuts (Stream Page)
+### Conventions
+
+- **One data source per topic.** Team colours, session labels, flags and date
+  formatting used to be duplicated across pages; they now live in `src/data`
+  and `src/lib`.
+- **Errors are shown, not swallowed.** API helpers reject, and pages render an
+  `ErrorState` with a retry instead of an empty table.
+- **Fetch only what is visible.** Lazily-loaded routes, tab-scoped requests, and
+  a request cache with in-flight de-duplication so four pages asking for the
+  schedule make one request.
+- **Times are always converted to the viewer's local timezone.**
+
+## Keyboard Shortcuts (Stream page)
 
 | Key | Action |
 |-----|--------|
-| `S` | Switch server |
+| `S` | Open the server picker |
+| `N` | Jump to the next server |
 | `F` | Toggle fullscreen |
-| `P` | Picture-in-Picture |
-| `H` | Toggle help overlay |
-| `Esc` | Close modals |
+| `P` | Request picture-in-picture |
+| `H` | Toggle the shortcut panel |
+| `Esc` | Close a panel |
+
+## Note
+
+Stream servers are third-party public embeds and go down without notice; the
+reachability dots are a hint, not a guarantee. This project is not affiliated
+with, endorsed by, or connected to Formula 1, the FIA or FOM.
 
 ## Made by
 

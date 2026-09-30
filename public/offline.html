@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Offline — F1TV</title>
+    <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
+    <link
+      rel="stylesheet"
+      href="https://fonts.googleapis.com/css2?family=Geist:wght@400..800&family=Archivo:ital,wght@1,700..900&display=swap"
+    />
+    <style>
+      * { box-sizing: border-box; margin: 0; }
+      body {
+        min-height: 100dvh;
+        display: grid;
+        place-items: center;
+        padding: 2rem;
+        background:
+          radial-gradient(120% 55% at 50% -10%, rgb(225 6 0 / 0.14) 0%, transparent 65%),
+          #07080a;
+        color: #e8ecf1;
+        font-family: "Geist", -apple-system, BlinkMacSystemFont, sans-serif;
+        -webkit-font-smoothing: antialiased;
+      }
+      .wrap { max-width: 30rem; text-align: center; }
+      .bars {
+        display: flex; gap: 7px; justify-content: center; margin-bottom: 2.5rem;
+        transform: skewX(-18deg);
+      }
+      .bars span { height: 8px; border-radius: 2px; }
+      .bars span:nth-child(1) { width: 120px; background: #e10600; }
+      .bars span:nth-child(2) { width: 92px; background: #e8ecf1; }
+      .bars span:nth-child(3) { width: 64px; background: #545e6d; }
+      h1 {
+        font-family: "Archivo", sans-serif;
+        font-size: clamp(2.5rem, 9vw, 3.75rem);
+        font-style: italic;
+        font-weight: 900;
+        letter-spacing: -0.03em;
+        line-height: 1;
+        margin-bottom: 1rem;
+      }
+      p {
+        color: #a3adbb;
+        font-size: 0.95rem;
+        line-height: 1.65;
+        margin-bottom: 2rem;
+      }
+      a {
+        display: inline-block;
+        padding: 0.7rem 1.5rem;
+        border-radius: 5px;
+        background: linear-gradient(135deg, #e10600, #a30500);
+        color: #fff;
+        font-size: 13px;
+        font-weight: 600;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        text-decoration: none;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="wrap">
+      <div class="bars"><span></span><span></span><span></span></div>
+      <h1>No Signal</h1>
+      <p>
+        You&rsquo;re offline and this page hasn&rsquo;t been cached yet. Reconnect to
+        load live timing, results and streams.
+      </p>
+      <a href="/home">Back to F1TV</a>
+    </div>
+  </body>
+</html>

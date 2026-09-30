@@ -1,474 +1,666 @@
-import { useState, useEffect } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
-import { Play, MapPin, Clock, Thermometer, Droplets, Wind, CloudRain, ChevronRight, ChevronDown, Trophy, Calendar, Flag } from 'lucide-react';
-import type { F1Session, F1Weather } from '../api/openf1';
-import { getSessions, getFallbackSessions, getLatestWeather, getNextRaceSession, getWeatherForSession, getSessionStatus, getSessionLabel, getSessionProgress } from '../api/openf1';
-import { getDriverStandings, getConstructorStandings } from '../api/f1Api';
-import type { DriverStanding, ConstructorStanding } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import {
+  ArrowRight,
+  CalendarDays,
+  CloudRain,
+  Droplets,
+  Gauge,
+  Play,
+  Thermometer,
+  Timer,
+  Wind,
+} from 'lucide-react';
+import { useSession } from '../context/SessionContext';
+import { getSessionMeta } from '../data/sessions';
+import { getTeamColor } from '../data/teams';
+import {
+  getConstructorStandings,
+  getDriverStandings,
+  getSchedule,
+  type ConstructorStanding,
+  type DriverStanding,
+} from '../api/f1Api';
+import {
+  getLatestWeather,
+  getWeatherForSession,
+  isTrackWet,
+  type F1Weather,
+} from '../api/openf1';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import {
+  formatNumber,
+  formatShortDate,
+  formatTimeZoned,
+  relativeDayLabel,
+  surname,
+} from '../lib/format';
+import { getRaceStart } from '../lib/races';
+import { ButtonLink } from '../components/ui/Button';
+import { Panel, PanelTitle } from '../components/ui/Panel';
+import { LiveDot, TeamDot } from '../components/ui/Badge';
+import { Countdown, CountdownStat } from '../components/ui/Countdown';
+import { DriverAvatar, Flag, Meter, Stat, TrackImage } from '../components/ui/Atoms';
+import { Skeleton, SkeletonRows } from '../components/ui/Skeleton';
+import { Tabs } from '../components/ui/Tabs';
+import { EmptyState } from '../components/ui/States';
+import { PageContainer } from '../components/ui/PageHeader';
+
+const STANDINGS_POLL = 180_000;
+const WEATHER_POLL = 180_000;
 
 export default function Home() {
-  const navigate = useNavigate();
-  const [sessions, setSessions] = useState<F1Session[]>([]);
-  const [weather, setWeather] = useState<F1Weather | null>(null);
-  const [drivers, setDrivers] = useState<DriverStanding[]>([]);
-  const [constructors, setConstructors] = useState<ConstructorStanding[]>([]);
-  const [showStandings, setShowStandings] = useState(false);
+  useDocumentTitle('Live F1');
+  const { current, live, upcoming, loading: sessionsLoading } = useSession();
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
+  /* --- Weather: prefer the live session's circuit, else the latest feed --- */
+  const weatherSessionKey = live?.session_key ?? current?.session_key ?? null;
 
-    const loadWeather = (allSessions: F1Session[]) => {
-      const nextRace = getNextRaceSession(allSessions);
-      if (nextRace && getSessionStatus(nextRace) !== 'upcoming') {
-        getWeatherForSession(nextRace.session_key).then((w) => {
-          if (w) { setWeather(w); return; }
-          getLatestWeather().then(setWeather).catch(() => {});
-        }).catch(() => {
-          getLatestWeather().then(setWeather).catch(() => {});
-        });
-      } else {
-        getLatestWeather().then(setWeather).catch(() => {});
+  const { data: weather } = useAsync<F1Weather | null>(
+    async () => {
+      if (weatherSessionKey) {
+        const forSession = await getWeatherForSession(weatherSessionKey);
+        if (forSession) return forSession;
       }
-    };
+      return getLatestWeather();
+    },
+    [weatherSessionKey],
+    { intervalMs: WEATHER_POLL },
+  );
 
-    getSessions().then((all) => {
-      const loadFromSessions = (sessions: F1Session[]) => {
-        const upcoming = sessions.filter((s) => !s.is_cancelled);
-        setSessions(upcoming);
-        loadWeather(sessions);
-        interval = setInterval(() => {
-          getSessions().then((s) => s.length > 0 ? loadWeather(s) : loadWeather(all)).catch(() => {});
-        }, 180_000);
-      };
+  /* --- Championship snapshot --- */
+  const { data: drivers } = useAsync<DriverStanding[]>(() => getDriverStandings(), [], {
+    intervalMs: STANDINGS_POLL,
+  });
+  const { data: constructors } = useAsync<ConstructorStanding[]>(
+    () => getConstructorStandings(),
+    [],
+    { intervalMs: STANDINGS_POLL },
+  );
 
-      if (all.length > 0) {
-        loadFromSessions(all);
-      } else {
-        getFallbackSessions().then(loadFromSessions).catch(() => {});
-      }
-    }).catch(() => {});
+  /* --- Upcoming rounds --- */
+  const { data: races } = useAsync(() => getSchedule(), []);
 
-    getDriverStandings().then((s) => setDrivers(s.slice(0, 5))).catch(console.error);
-    getConstructorStandings().then((s) => setConstructors(s.slice(0, 5))).catch(console.error);
+  const nextRaces = useMemo(() => (races ?? []).filter((r) => {
+    const start = getRaceStart(r);
+    return !start || start.getTime() > Date.now() - 2 * 3600_000;
+  }).slice(0, 3), [races]);
 
-    const standingsInterval = setInterval(() => {
-      getDriverStandings().then((s) => setDrivers(s.slice(0, 5))).catch(() => {});
-      getConstructorStandings().then((s) => setConstructors(s.slice(0, 5))).catch(() => {});
-    }, 180_000);
-
-    return () => { if (interval) clearInterval(interval); clearInterval(standingsInterval); };
-  }, []);
-
-  const progress = getSessionProgress(sessions);
+  const snapshot = weather ?? null;
+  const hasWeather = Boolean(
+    snapshot &&
+      (snapshot.air_temperature !== null || snapshot.track_temperature !== null),
+  );
+  const trackState = isTrackWet(snapshot);
 
   return (
-    <PageWrapper>
-      <Header />
+    <PageContainer className="pt-6 sm:pt-8">
+      <Hero
+        live={live}
+        current={current}
+        weather={hasWeather ? snapshot : null}
+        trackState={trackState}
+        loading={sessionsLoading}
+      />
 
-      {/* Weather Bar */}
-      {progress?.current ? (
-        <div style={{ maxWidth: 1100, margin: '0 auto 16px', padding: '0 16px' }} className="fade-in-up" >
-          <div className="glass" style={{ display: 'flex', flexWrap: 'wrap', alignItems: 'center', justifyContent: 'space-between', gap: 10, padding: '10px 14px', borderRadius: 12 }}>
-            <div style={{ display: 'flex', alignItems: 'center', gap: 8, color: '#d4d4d4', fontSize: 13 }}>
-              <MapPin size={13} color="#e10600" />
-              <span style={{ fontWeight: 600 }}>{progress.current.circuit_short_name}</span>
-              <span style={{ color: '#737373' }}>|</span>
-              <span style={{ color: '#a3a3a3' }}>{progress.current.country_name}</span>
+      <div className="mt-4 grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+        <Championship drivers={drivers} constructors={constructors} />
+        <SessionQueue current={current} live={live} upcoming={upcoming} loading={sessionsLoading} />
+      </div>
+
+      <section className="mt-4">
+        <Panel flush className="overflow-hidden">
+          <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-5 py-4 sm:px-6">
+            <PanelTitle eyebrow="Season" title="Next up" />
+            <Link
+              to="/calendar"
+              className="link-wipe flex shrink-0 items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
+            >
+              Full calendar
+              <ArrowRight size={12} />
+            </Link>
+          </div>
+
+          {nextRaces.length === 0 ? (
+            <EmptyState
+              title="Season complete"
+              description="No more rounds on the calendar for this season."
+            />
+          ) : (
+            <div className="grid divide-y divide-white/[0.05] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+              {nextRaces.map((race, index) => (
+                <RaceCard key={race.round} race={race} first={index === 0} />
+              ))}
             </div>
-            {weather ? (
-              <div className="weather-stats" style={{ display: 'flex', alignItems: 'center', gap: 16, fontSize: 12, flexWrap: 'wrap' }}>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Thermometer size={12} color="#fb923c" /> <strong style={{ color: '#fff' }}>{weather.air_temperature ?? '--'}&deg;</strong></span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Thermometer size={12} color="#f87171" /> Track <strong style={{ color: '#fff' }}>{weather.track_temperature ?? '--'}&deg;</strong></span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Droplets size={12} color="#60a5fa" /> <strong style={{ color: '#fff' }}>{weather.humidity ?? '--'}%</strong></span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}><Wind size={12} color="#34d399" /> <strong style={{ color: '#fff' }}>{weather.wind_speed ?? '--'} km/h</strong></span>
-                <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontWeight: 700, color: weather.rainfall != null && weather.rainfall > 0 ? '#60a5fa' : '#34d399' }}>
-                  {weather.rainfall != null && weather.rainfall > 0 ? <><CloudRain size={12} /> WET</> : 'DRY'}
-                </span>
-              </div>
-            ) : (
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div className="skeleton skeleton-text" style={{ width: 50 }} />
-                <div className="skeleton skeleton-text" style={{ width: 60 }} />
-                <div className="skeleton skeleton-text" style={{ width: 40 }} />
-                <div className="skeleton skeleton-text" style={{ width: 55 }} />
-                <div className="skeleton skeleton-text" style={{ width: 30 }} />
-              </div>
-            )}
-          </div>
-        </div>
-      ) : (
-        <div style={{ maxWidth: 1100, margin: '0 auto 16px', padding: '0 16px' }} className="fade-in-up">
-          <div className="glass" style={{ display: 'flex', alignItems: 'center', gap: 10, padding: '10px 14px', borderRadius: 12 }}>
-            <div className="skeleton skeleton-text" style={{ width: 140, height: 14 }} />
-            <div className="skeleton skeleton-text" style={{ width: 80, height: 14 }} />
-          </div>
-        </div>
-      )}
+          )}
+        </Panel>
+      </section>
+    </PageContainer>
+  );
+}
 
-      {/* Hero */}
-      <div style={{ textAlign: 'center', padding: '24px 16px 32px', maxWidth: 1100, margin: '0 auto', position: 'relative' }} className="fade-in-up">
-        {/* Subtle radial glow behind hero */}
-        <div style={{
-          position: 'absolute', top: '50%', left: '50%', transform: 'translate(-50%, -50%)',
-          width: 400, height: 400, borderRadius: '50%',
-          background: 'radial-gradient(circle, rgba(225,6,0,0.06) 0%, transparent 70%)',
-          pointerEvents: 'none',
-        }} />
-        <h1 className="hero-title" style={{ fontSize: 'clamp(40px, 8vw, 80px)', fontWeight: 900, fontStyle: 'italic', letterSpacing: '-0.05em', marginBottom: 6, position: 'relative' }}>
-          <span style={{ color: '#fff' }}>F1</span>
-          <span style={{ color: '#e10600' }}>TV</span>
-        </h1>
-        <p style={{ fontSize: 11, color: '#737373', textTransform: 'uppercase', letterSpacing: '0.3em', fontWeight: 700, marginBottom: 24, position: 'relative' }}>
-          Live Formula 1 Streaming
-        </p>
-        <div style={{ display: 'flex', gap: 10, justifyContent: 'center', flexWrap: 'wrap', position: 'relative' }}>
-          <button className="btn-red" onClick={() => navigate('/stream')} style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '14px 32px', borderRadius: 14, fontSize: 16, fontWeight: 700, fontFamily: 'inherit' }}>
-            <Play size={18} fill="#fff" /> Watch Live
-          </button>
-          <Link to="/highlights" className="glass glass-hover" style={{ display: 'inline-flex', alignItems: 'center', gap: 10, padding: '14px 24px', borderRadius: 14, fontSize: 14, fontWeight: 600, textDecoration: 'none', color: '#d4d4d4' }}>
-            <Calendar size={15} /> Race Highlights
+/* ========================================================================== */
+/* Hero                                                                       */
+/* ========================================================================== */
+
+function Hero({
+  live,
+  current,
+  weather,
+  trackState,
+  loading,
+}: {
+  live: ReturnType<typeof useSession>['live'];
+  current: ReturnType<typeof useSession>['current'];
+  weather: F1Weather | null;
+  trackState: boolean | null;
+  loading: boolean;
+}) {
+  const meta = current ? getSessionMeta(current.session_name, current.session_type) : null;
+  const isLive = Boolean(live);
+  const target = current?.date_start ?? null;
+
+  return (
+    <section
+      className={`notched relative overflow-hidden rounded-lg border transition-colors duration-500 ${
+        isLive
+          ? 'border-live/40 bg-linear-to-br from-live/12 via-ink-850 to-ink-850'
+          : 'border-white/8 bg-linear-to-br from-f1-red/8 via-ink-850 to-ink-850'
+      }`}
+    >
+      {/* Speed-line texture + corner bloom. */}
+      <div aria-hidden className="speedlines pointer-events-none absolute inset-0 opacity-60" />
+      <div
+        aria-hidden
+        className="pointer-events-none absolute -top-24 -right-24 size-80 rounded-full opacity-70 blur-3xl"
+        style={{
+          background: isLive
+            ? 'radial-gradient(circle, rgb(255 59 48 / 0.35), transparent 70%)'
+            : 'radial-gradient(circle, rgb(225 6 0 / 0.28), transparent 70%)',
+        }}
+      />
+
+      <div className="relative p-6 sm:p-9 lg:p-11">
+        <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+          <div className="min-w-0">
+            <p className="eyebrow mb-4 flex items-center gap-2.5">
+              <span className="accent-bar inline-block h-3 w-1.5" />
+              {new Date().getFullYear()} Formula 1 World Championship
+            </p>
+
+            <h1 className="font-display text-[clamp(2.4rem,8.5vw,4.75rem)] leading-[0.9] font-black tracking-[-0.05em] text-mist-50">
+              {isLive ? (
+                <>
+                  <span className="text-f1-red-bright">ON AIR</span>
+                  <br />
+                  RIGHT NOW
+                </>
+              ) : (
+                <>
+                  WATCH F1
+                  <br />
+                  <span className="text-f1-red">LIVE</span>
+                </>
+              )}
+            </h1>
+
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-mist-300">
+              {loading && !current ? (
+                <Skeleton className="h-4 w-64" />
+              ) : current ? (
+                <>
+                  <span className="font-semibold text-mist-50">
+                    {current.location || current.circuit_short_name}
+                  </span>
+                  {current.country_name && (
+                    <span className="inline-flex items-center gap-1.5 text-mist-400">
+                      <Flag country={current.country_name} />
+                      {current.country_name}
+                    </span>
+                  )}
+                  <span className="text-mist-600">/</span>
+                  <span className="text-mist-400">
+                    {formatShortDate(current.date_start)} ·{' '}
+                    {formatTimeZoned(current.date_start)}
+                  </span>
+                </>
+              ) : (
+                <span className="text-mist-400">Season schedule published soon</span>
+              )}
+            </div>
+
+            <div className="mt-7 flex flex-wrap items-center gap-2.5">
+              <ButtonLink to="/stream" variant={isLive ? 'live' : 'primary'} size="lg">
+                <Play size={13} className="fill-current" />
+                {isLive ? 'Watch live now' : 'Watch live'}
+              </ButtonLink>
+              <ButtonLink to="/highlights" variant="secondary" size="lg">
+                Race highlights
+              </ButtonLink>
+              <ButtonLink to="/standings" variant="ghost" size="lg">
+                Standings
+              </ButtonLink>
+            </div>
+          </div>
+
+          {/* Session state block */}
+          <div className="flex shrink-0 flex-col items-start gap-4 lg:items-end">
+            {isLive && meta ? (
+              <div className="rounded-md border border-live/30 bg-live/10 px-5 py-4 lg:text-right">
+                <LiveDot label={meta.label} className="lg:justify-end" />
+                <p className="num mt-2.5 text-2xl font-bold text-mist-50">
+                  {formatTimeZoned(live!.date_start)}
+                </p>
+                <p className="mt-1 font-mono text-[10px] tracking-[0.1em] text-mist-400 uppercase">
+                  Started · in progress
+                </p>
+              </div>
+            ) : current && meta ? (
+              <div className="rounded-md border border-white/10 bg-white/[0.04] px-5 py-4 lg:text-right">
+                <p className="eyebrow mb-3 lg:justify-end">{meta.label} starts in</p>
+                <Countdown target={target} />
+              </div>
+            ) : null}
+          </div>
+        </div>
+
+        {/* Weather strip */}
+        <div className="mt-8 border-t border-white/[0.07] pt-5">
+          {!weather ? (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
+              {[0, 1, 2, 3].map((i) => (
+                <Skeleton key={i} className="h-4 w-20" />
+              ))}
+            </div>
+          ) : (
+            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
+              <span className="eyebrow mr-1 inline-flex items-center gap-2">
+                <Gauge size={11} className="text-f1-red" />
+                Track
+              </span>
+              <WeatherStat
+                icon={<Thermometer size={12} />}
+                label="Air"
+                value={weather.air_temperature}
+                unit="°C"
+              />
+              <WeatherStat
+                icon={<Thermometer size={12} />}
+                label="Track"
+                value={weather.track_temperature}
+                unit="°C"
+              />
+              <WeatherStat
+                icon={<Droplets size={12} />}
+                label="Humidity"
+                value={weather.humidity}
+                unit="%"
+              />
+              <WeatherStat
+                icon={<Wind size={12} />}
+                label="Wind"
+                value={weather.wind_speed}
+                unit="km/h"
+              />
+              <span
+                className={`inline-flex items-center gap-1.5 rounded-xs border px-2 py-1 font-mono text-[9.5px] font-semibold tracking-[0.12em] uppercase ${
+                  trackState === true
+                    ? 'border-telemetry/40 bg-telemetry/12 text-telemetry'
+                    : trackState === false
+                      ? 'border-sodium/40 bg-sodium/12 text-sodium'
+                      : 'border-white/12 bg-white/5 text-mist-400'
+                }`}
+              >
+                <CloudRain size={10} />
+                {trackState === true ? 'Wet' : trackState === false ? 'Dry' : 'Conditions n/a'}
+              </span>
+            </div>
+          )}
+        </div>
+      </div>
+    </section>
+  );
+}
+
+function WeatherStat({
+  icon,
+  label,
+  value,
+  unit,
+}: {
+  icon: React.ReactNode;
+  label: string;
+  value: number | null;
+  unit: string;
+}) {
+  return (
+    <span className="inline-flex items-center gap-2">
+      <span className="text-mist-500">{icon}</span>
+      <span className="font-mono text-[10px] tracking-[0.1em] text-mist-500 uppercase">
+        {label}
+      </span>
+      <span className="num text-[13px] font-semibold text-mist-100">
+        {value === null ? '—' : Math.round(value)}
+        {value !== null && <span className="ml-0.5 text-[10px] text-mist-500">{unit}</span>}
+      </span>
+    </span>
+  );
+}
+
+/* ========================================================================== */
+/* Championship snapshot                                                      */
+/* ========================================================================== */
+
+type StandingsTab = 'drivers' | 'teams';
+
+function Championship({
+  drivers,
+  constructors,
+}: {
+  drivers: DriverStanding[] | undefined;
+  constructors: ConstructorStanding[] | undefined;
+}) {
+  const [tab, setTab] = useState<StandingsTab>('drivers');
+
+  return (
+    <Panel flush>
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4 sm:px-6">
+        <PanelTitle eyebrow="Championship" title="Standings" />
+        <Tabs
+          items={[
+            { value: 'drivers', label: 'Drivers' },
+            { value: 'teams', label: 'Teams' },
+          ]}
+          value={tab}
+          onChange={setTab}
+          size="sm"
+          aria-label="Standings category"
+        />
+      </div>
+
+      <div className="p-5 sm:p-6">
+        {tab === 'drivers' ? (
+          drivers === undefined ? (
+            <SkeletonRows rows={5} />
+          ) : drivers.length === 0 ? (
+            <EmptyState title="No standings yet" description="The season has not started." />
+          ) : (
+            <DriverStandingsList rows={drivers.slice(0, 6)} />
+          )
+        ) : constructors === undefined ? (
+          <SkeletonRows rows={5} />
+        ) : constructors.length === 0 ? (
+          <EmptyState title="No standings yet" />
+        ) : (
+          <TeamStandingsList rows={constructors.slice(0, 6)} />
+        )}
+      </div>
+    </Panel>
+  );
+}
+
+/** Local tab state, kept out of the shared Tabs component's contract. */
+function DriverStandingsList({ rows }: { rows: DriverStanding[] }) {
+  const leaderPoints = Number(rows[0]?.points ?? 0);
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row, i) => {
+        const color = getTeamColor(row.teamName);
+        const points = Number(row.points);
+        return (
+          <li key={row.driverId}>
+            <Link
+              to="/standings"
+              className="group flex items-center gap-3 rounded-sm px-2 py-2 transition-colors hover:bg-white/[0.04]"
+            >
+              <span
+                className={`num w-6 shrink-0 text-[13px] font-bold ${
+                  i === 0 ? 'text-sodium' : i === 1 ? 'text-mist-200' : i === 2 ? 'text-[#c2793a]' : 'text-mist-500'
+                }`}
+              >
+                {row.positionText}
+              </span>
+              <DriverAvatar number={row.driverNumber} name={row.driverName} color={color} size="sm" />
+              <span className="min-w-0 flex-1">
+                <span className="flex items-baseline gap-2">
+                  <span className="truncate text-[13px] font-semibold text-mist-50 group-hover:text-white">
+                    {surname(row.driverName)}
+                  </span>
+                  <TeamDot color={color} />
+                </span>
+                <span className="mt-0.5 block truncate font-mono text-[10px] text-mist-500">
+                  {i === 0 ? 'Leader' : `−${leaderPoints - points} pts`}
+                </span>
+              </span>
+              <span className="num shrink-0 text-[15px] font-bold text-mist-50">
+                {formatNumber(row.points)}
+              </span>
+            </Link>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function TeamStandingsList({ rows }: { rows: ConstructorStanding[] }) {
+  const leaderPoints = Number(rows[0]?.points ?? 0);
+  return (
+    <ul className="flex flex-col gap-1">
+      {rows.map((row, i) => {
+        const color = getTeamColor(row.constructorName);
+        const points = Number(row.points);
+        return (
+          <li key={row.constructorId} className="px-2 py-2">
+            <div className="flex items-center gap-3">
+              <span
+                className={`num w-6 shrink-0 text-[13px] font-bold ${
+                  i === 0 ? 'text-sodium' : i === 1 ? 'text-mist-200' : i === 2 ? 'text-[#c2793a]' : 'text-mist-500'
+                }`}
+              >
+                {row.positionText}
+              </span>
+              <TeamDot color={color} className="size-2.5" />
+              <span className="min-w-0 flex-1 truncate text-[13px] font-semibold text-mist-50">
+                {row.constructorName}
+              </span>
+              <span className="num shrink-0 text-[15px] font-bold text-mist-50">
+                {formatNumber(row.points)}
+              </span>
+            </div>
+            <div className="mt-2 pl-[42px]">
+              <Meter value={leaderPoints ? points / leaderPoints : 0} color={color} delay={i * 60} />
+            </div>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+/* ========================================================================== */
+/* Session queue                                                              */
+/* ========================================================================== */
+
+function SessionQueue({
+  current,
+  live,
+  upcoming,
+  loading,
+}: {
+  current: ReturnType<typeof useSession>['current'];
+  live: ReturnType<typeof useSession>['live'];
+  upcoming: ReturnType<typeof useSession>['upcoming'];
+  loading: boolean;
+}) {
+  // One live row plus the next three, deduped by session key.
+  const queue = useMemo(() => {
+    const seen = new Set<number>();
+    const list: Array<{
+      key: number;
+      name: string;
+      type: string;
+      start: string;
+      circuit: string;
+      state: 'live' | 'next' | 'done';
+    }> = [];
+
+    const push = (
+      s: NonNullable<typeof current>,
+      state: 'live' | 'next' | 'done',
+    ) => {
+      if (seen.has(s.session_key)) return;
+      seen.add(s.session_key);
+      list.push({
+        key: s.session_key,
+        name: s.session_name,
+        type: s.session_type,
+        start: s.date_start,
+        circuit: s.location || s.circuit_short_name,
+        state,
+      });
+    };
+
+    if (live) push(live, 'live');
+    if (current && (!live || current.session_key !== live.session_key)) push(current, 'next');
+    upcoming.slice(0, live ? 3 : 2).forEach((s) => push(s, 'next'));
+
+    return list;
+  }, [current, live, upcoming]);
+
+  return (
+    <Panel flush>
+      <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+        <PanelTitle eyebrow="Circuit activity" title="What's on" />
+      </div>
+
+      <div className="p-3 sm:p-4">
+        {loading && queue.length === 0 ? (
+          <SkeletonRows rows={4} gap="gap-2" />
+        ) : queue.length === 0 ? (
+          <EmptyState
+            icon={<CalendarDays size={18} />}
+            title="No sessions scheduled"
+            description="The OpenF1 feed is not reporting any sessions for this season."
+          />
+        ) : (
+          <ul className="flex flex-col gap-1">
+            {queue.map((item) => {
+              const meta = getSessionMeta(item.name, item.type);
+              return (
+                <li
+                  key={item.key}
+                  className={`flex items-center gap-3 rounded-sm border px-3 py-2.5 transition-colors ${
+                    item.state === 'live'
+                      ? 'border-live/30 bg-live/8'
+                      : 'border-transparent hover:border-white/8 hover:bg-white/[0.03]'
+                  }`}
+                >
+                  <span
+                    className={`num flex size-9 shrink-0 items-center justify-center rounded-xs border font-mono text-[9.5px] font-bold tracking-[0.04em] ${meta.surface} ${meta.color}`}
+                  >
+                    {meta.badge}
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block truncate text-[12.5px] font-semibold text-mist-100">
+                      {meta.label}
+                    </span>
+                    <span className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-[10px] text-mist-500">
+                      <Timer size={9} className="shrink-0" />
+                      {formatShortDate(item.start)} · {formatTimeZoned(item.start)}
+                    </span>
+                  </span>
+                  {item.state === 'live' ? (
+                    <LiveDot label="" className="shrink-0" />
+                  ) : (
+                    <span className="shrink-0 font-mono text-[9px] tracking-[0.12em] text-mist-600 uppercase">
+                      Next
+                    </span>
+                  )}
+                </li>
+              );
+            })}
+          </ul>
+        )}
+
+        <div className="hairline-t mt-3 flex items-center justify-between gap-3 pt-3">
+          <span className="font-mono text-[10px] text-mist-500">
+            {upcoming.length} upcoming
+          </span>
+          <Link
+            to="/schedule"
+            className="link-wipe inline-flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
+          >
+            All times
+            <ArrowRight size={11} />
           </Link>
         </div>
       </div>
-
-      {/* Session Widget */}
-      <div style={{ maxWidth: 700, margin: '0 auto 32px', padding: '0 16px' }} className="fade-in-up">
-        {progress ? (
-          <SessionWidget progress={progress} />
-        ) : (
-          <div className="glass skeleton-pill" style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '12px 16px', borderRadius: 16 }}>
-            <div className="skeleton skeleton-circle" style={{ width: 44, height: 44, flexShrink: 0 }} />
-            <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-              <div className="skeleton skeleton-text" style={{ width: '60%', height: 14 }} />
-              <div className="skeleton skeleton-text" style={{ width: '40%', height: 10 }} />
-            </div>
-            <div style={{ display: 'flex', gap: 4 }}>
-              <div className="skeleton" style={{ width: 30, height: 36, borderRadius: 6 }} />
-              <div className="skeleton" style={{ width: 30, height: 36, borderRadius: 6 }} />
-              <div className="skeleton" style={{ width: 30, height: 36, borderRadius: 6 }} />
-              <div className="skeleton" style={{ width: 30, height: 36, borderRadius: 6 }} />
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Standings Toggle */}
-      <div style={{ maxWidth: 900, margin: '0 auto 32px', padding: '0 16px' }} className="fade-in-up">
-        <button
-          className="glass"
-          onClick={() => setShowStandings(!showStandings)}
-          style={{
-            width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-            padding: '10px 16px', borderRadius: 12, color: '#d4d4d4', fontSize: 13, fontWeight: 600, cursor: 'pointer',
-            background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-          }}
-        >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 0 }}>
-            <Trophy size={13} />
-            {drivers.length > 0 ? (
-              <span style={{ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                <span style={{ color: '#737373', fontWeight: 400 }}>Standings</span>
-                <span style={{ color: '#525252', margin: '0 4px' }}>·</span>
-                <span style={{ color: '#facc15', fontWeight: 700 }}>{drivers[0].driverName}</span>
-                <span style={{ color: '#737373', fontWeight: 400 }}> leads by {Number(drivers[0].points) - Number(drivers[1]?.points ?? 0)} pts</span>
-              </span>
-            ) : (
-              <span>Championship Standings</span>
-            )}
-          </div>
-          <span style={{ transform: showStandings ? 'rotate(90deg)' : 'none', transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)', display: 'flex', flexShrink: 0 }}><ChevronRight size={13} /></span>
-        </button>
-        {showStandings && (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(260px, 1fr))', gap: 12, marginTop: 12 }}>
-            <div className="glass scale-in" style={{ borderRadius: 12, padding: 14 }}>
-              <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#737373', marginBottom: 10 }}>Drivers</h3>
-              {drivers.map((d) => (
-                <div key={d.driverId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }} className="stagger-in" >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 18, textAlign: 'center', fontSize: 12, fontWeight: 700, color: d.positionText === '1' ? '#facc15' : '#737373' }}>{d.positionText}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>{d.driverName}</span>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{d.points}</span>
-                </div>
-              ))}
-            </div>
-            <div className="glass scale-in" style={{ borderRadius: 12, padding: 14, animationDelay: '0.1s' }}>
-              <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#737373', marginBottom: 10 }}>Constructors</h3>
-              {constructors.map((c) => (
-                <div key={c.constructorId} style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', padding: '6px 0', borderBottom: '1px solid rgba(255,255,255,0.04)' }} className="stagger-in" >
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                    <span style={{ width: 18, textAlign: 'center', fontSize: 12, fontWeight: 700, color: c.positionText === '1' ? '#facc15' : '#737373' }}>{c.positionText}</span>
-                    <span style={{ fontSize: 12, fontWeight: 500, color: '#fff' }}>{c.constructorName}</span>
-                  </div>
-                  <span style={{ fontSize: 12, fontWeight: 700, color: '#fff' }}>{c.points}</span>
-                </div>
-              ))}
-            </div>
-          </div>
-        )}
-      </div>
-
-      {/* Next 3 Races */}
-      {sessions.length > 0 && (() => {
-        const now = new Date();
-        const upcomingRaces = sessions
-          .filter((s) => !s.is_cancelled && s.session_name === 'Race' && new Date(s.date_start) > now)
-          .slice(0, 3);
-        if (upcomingRaces.length === 0) return null;
-        return (
-          <div style={{ maxWidth: 900, margin: '0 auto 32px', padding: '0 16px' }} className="fade-in-up">
-            <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#737373', marginBottom: 12, display: 'flex', alignItems: 'center', gap: 6 }}>
-              <Flag size={12} color="#e10600" /> Upcoming Races
-            </h3>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))', gap: 10 }}>
-              {upcomingRaces.map((race) => {
-                const raceDate = new Date(race.date_start);
-                const diffMs = raceDate.getTime() - Date.now();
-                const daysAway = Math.ceil(diffMs / 86400000);
-                return (
-                  <div key={race.session_key} className="glass glass-hover" style={{ padding: '12px 14px', borderRadius: 12, display: 'flex', alignItems: 'center', gap: 12 }} >
-                    <div style={{
-                      width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-                      display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center',
-                      background: 'rgba(225,6,0,0.1)', border: '1px solid rgba(225,6,0,0.2)',
-                    }}>
-                      <span style={{ fontSize: 14, fontWeight: 900, color: '#e10600', lineHeight: 1 }}>{raceDate.getDate()}</span>
-                      <span style={{ fontSize: 8, fontWeight: 600, color: '#e10600', textTransform: 'uppercase' }}>{raceDate.toLocaleDateString('en-US', { month: 'short' })}</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{ fontSize: 13, fontWeight: 600, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        {race.circuit_short_name}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#737373', marginTop: 1 }}>
-                        {daysAway <= 0 ? 'This weekend' : daysAway === 1 ? 'Tomorrow' : `In ${daysAway} days`}
-                      </div>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        );
-      })()}
-
-      <Footer />
-    </PageWrapper>
+    </Panel>
   );
 }
 
-function SessionWidget({ progress }: { progress: { current: F1Session; upcoming: F1Session[]; finished: F1Session[] } }) {
-  const { current, upcoming, finished } = progress;
-  const [now, setNow] = useState(Date.now());
-  const [showQueue, setShowQueue] = useState(false);
+/* ========================================================================== */
+/* Next race cards                                                            */
+/* ========================================================================== */
 
-  useEffect(() => {
-    const t = setInterval(() => setNow(Date.now()), 1000);
-    return () => clearInterval(t);
-  }, []);
-
-  const status = getSessionStatus(current);
-  const date = new Date(current.date_start);
-  const isLive = status === 'live';
-  const sessionLabel = getSessionLabel(current.session_type, current.session_name);
-  const sessionFullLabel = getSessionFullLabel(current.session_name);
-
-  const queue = [...finished.slice(-2), current, ...upcoming.slice(0, 3)];
-  const dedupedQueue = queue.filter((s, i, arr) => arr.findIndex((x) => x.session_key === s.session_key) === i);
-
-  // NEXT badge: when current is live, next = first upcoming after it;
-  // when current is upcoming (not live), current itself IS next.
-  const isCurrentLive = getSessionStatus(current) === 'live';
-  const nextSessionKey = isCurrentLive
-    ? dedupedQueue.find((s) => s.session_key !== current.session_key && getSessionStatus(s) === 'upcoming')?.session_key
-    : current.session_key;
+function RaceCard({
+  race,
+  first,
+}: {
+  race: import('../api/f1Api').Race;
+  first: boolean;
+}) {
+  const start = getRaceStart(race);
 
   return (
-    <div style={{ position: 'relative' }}>
-      {/* Main pill */}
-      <div
-        className={`glass-strong session-pill session-pill-layout ${isLive ? 'session-pill-live' : ''}`}
-        style={{
-          display: 'flex', alignItems: 'center', gap: 14,
-          padding: '12px 16px', borderRadius: 16, cursor: 'default',
-          transition: 'all 0.3s cubic-bezier(0.4,0,0.2,1)',
-        }}
-      >
-        {/* Status dot */}
-        <div className="session-badge" style={{ position: 'relative', flexShrink: 0 }}>
-          <div style={{
-            width: 44, height: 44, borderRadius: '50%',
-            display: 'flex', alignItems: 'center', justifyContent: 'center',
-            background: isLive
-              ? 'linear-gradient(135deg, rgba(239,68,68,0.25), rgba(239,68,68,0.08))'
-              : 'linear-gradient(135deg, rgba(225,6,0,0.2), rgba(225,6,0,0.05))',
-            border: isLive ? '2px solid rgba(239,68,68,0.5)' : '2px solid rgba(225,6,0,0.3)',
-          }}>
-            <span style={{ fontSize: 11, fontWeight: 900, color: isLive ? '#f87171' : '#e10600' }}>
-              {sessionLabel}
-            </span>
-          </div>
-          {isLive && (
-            <span className="pulse-dot" style={{
-              position: 'absolute', top: -2, right: -2,
-              width: 10, height: 10, borderRadius: '50%',
-              background: '#ef4444', border: '2px solid #111',
-            }} />
-          )}
-        </div>
-
-        {/* Info */}
-        <div className="session-info" style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginBottom: 2 }}>
-            <span style={{ fontSize: 14, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-              {current.circuit_short_name}
-            </span>
-            <span style={{ fontSize: 11, color: '#737373' }}>|</span>
-            <span style={{ fontSize: 12, color: '#a3a3a3' }}>{current.country_name}</span>
-          </div>
-          <div className="session-info-detail" style={{ display: 'flex', alignItems: 'center', gap: 8, fontSize: 11, color: '#737373' }}>
-            <span style={{ fontSize: 10, color: '#737373', fontWeight: 600 }}>{sessionFullLabel}</span>
-            <span style={{ color: '#333' }}>·</span>
-            <span style={{ display: 'flex', alignItems: 'center', gap: 3 }}>
-              <Clock size={10} />
-              {date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-            </span>
-            <span>{date.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit' })}</span>
-          </div>
-        </div>
-
-        {/* Countdown */}
-        <div className="session-countdown" style={{ flexShrink: 0 }}>
-          {isLive ? (
-            <span style={{ display: 'flex', alignItems: 'center', gap: 5, fontSize: 13, fontWeight: 700, color: '#f87171' }}>
-              <span className="pulse-dot" style={{ width: 6, height: 6, borderRadius: '50%', background: '#ef4444' }} />
-              LIVE NOW
-            </span>
-          ) : (
-            <PillCountdown target={current.date_start} now={now} />
-          )}
-        </div>
-
-        {/* Queue toggle */}
-        {dedupedQueue.length > 1 && (
-          <button
-            onClick={() => setShowQueue(!showQueue)}
-            className="session-queue-btn"
-            style={{
-              flexShrink: 0, width: 28, height: 28, borderRadius: 8,
-              background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#737373', cursor: 'pointer', display: 'flex', alignItems: 'center', justifyContent: 'center',
-              transition: 'all 0.2s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; e.currentTarget.style.color = '#d4d4d4'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; e.currentTarget.style.color = '#737373'; }}
-          >
-            <ChevronDown size={14} style={{ transform: showQueue ? 'rotate(180deg)' : 'none', transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1)' }} />
-          </button>
-        )}
-      </div>
-
-      {/* Session queue */}
-      {showQueue && dedupedQueue.length > 1 && (
-        <div className="glass slide-in-down" style={{
-          marginTop: 6, borderRadius: 14, overflow: 'hidden', padding: '6px 0',
-        }}>
-          {dedupedQueue.map((s, i) => {
-            const isActive = s.session_key === current.session_key;
-            const isNext = s.session_key === nextSessionKey;
-            const isFinished = getSessionStatus(s) === 'finished';
-            const sDate = new Date(s.date_start);
-            const isNextUpcoming = isNext && !isFinished;
-            return (
-              <div
-                key={s.session_key + '-' + i}
-                style={{
-                  display: 'flex', alignItems: 'center', gap: 10, padding: '8px 14px',
-                  background: isActive ? 'rgba(225,6,0,0.08)' : 'transparent',
-                  opacity: isFinished ? 0.55 : 1,
-                  transition: 'all 0.2s',
-                }}
-              >
-                <span style={{
-                  fontSize: 9, fontWeight: 900, minWidth: 36, textAlign: 'center',
-                  padding: '2px 6px', borderRadius: 5,
-                  ...getSessionBadgeStyle(s.session_type, s.session_name),
-                }}>
-                  {getSessionLabel(s.session_type, s.session_name)}
-                </span>
-                <span style={{ fontSize: 12, fontWeight: isActive ? 700 : 500, color: isActive ? '#fff' : '#d4d4d4', flex: 1, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {s.circuit_short_name}
-                </span>
-                {isNextUpcoming && (
-                  <span style={{ fontSize: 8, fontWeight: 900, color: '#34d399', background: 'rgba(52,211,153,0.12)', padding: '1px 5px', borderRadius: 4, flexShrink: 0, letterSpacing: '0.05em' }}>
-                    NEXT
-                  </span>
-                )}
-                <span style={{ fontSize: 10, color: '#737373', flexShrink: 0, display: 'flex', alignItems: 'center', gap: 3 }}>
-                  {sDate.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' })}
-                  <span style={{ color: '#525252' }}>·</span>
-                  {sDate.toLocaleTimeString('en-US', { hour: 'numeric', minute: '2-digit' })}
-                </span>
-                {isFinished && (
-                  <span style={{ fontSize: 8, fontWeight: 900, color: '#737373', background: 'rgba(115,115,115,0.15)', padding: '1px 5px', borderRadius: 4, flexShrink: 0, letterSpacing: '0.03em' }}>
-                    DONE
-                  </span>
-                )}
-              </div>
-            );
-          })}
-        </div>
+    <Link
+      to="/calendar"
+      className="group relative flex flex-col gap-4 p-5 transition-colors hover:bg-white/[0.03] sm:p-6"
+    >
+      {first && (
+        <span className="absolute top-0 left-0 h-full w-0.5 bg-linear-to-b from-f1-red to-f1-red/0" />
       )}
-    </div>
-  );
-}
 
-function getSessionBadgeStyle(_type: string, name: string): React.CSSProperties {
-  const base: React.CSSProperties = { display: 'inline-block' };
-  if (name === 'Race' || name === 'Sprint') return { ...base, background: 'rgba(225,6,0,0.25)', color: '#f87171' };
-  if (name === 'Qualifying' || name === 'Sprint Qualifying') return { ...base, background: 'rgba(234,179,8,0.2)', color: '#facc15' };
-  if (name.startsWith('Practice') || name.startsWith('Day')) return { ...base, background: 'rgba(59,130,246,0.2)', color: '#60a5fa' };
-  return { ...base, background: 'rgba(113,113,122,0.2)', color: '#a3a3a3' };
-}
-
-function getSessionFullLabel(name: string): string {
-  if (name === 'Practice 1') return 'Free Practice 1';
-  if (name === 'Practice 2') return 'Free Practice 2';
-  if (name === 'Practice 3') return 'Free Practice 3';
-  if (name === 'Sprint Qualifying') return 'Sprint Qualifying';
-  if (name === 'Sprint') return 'Sprint Race';
-  if (name === 'Qualifying') return 'Qualifying';
-  if (name === 'Race') return 'Race';
-  return name;
-}
-
-function PillCountdown({ target, now }: { target: string; now: number }) {
-  const diff = Math.max(0, new Date(target).getTime() - now);
-  const d = Math.floor(diff / 86400000);
-  const h = Math.floor((diff % 86400000) / 3600000);
-  const m = Math.floor((diff % 3600000) / 60000);
-  const s = Math.floor((diff % 60000) / 1000);
-
-  const segments = [
-    { v: d, l: 'Days' },
-    { v: h, l: 'Hrs' },
-    { v: m, l: 'Min' },
-    { v: s, l: 'Sec' },
-  ];
-
-  return (
-    <div style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-      {segments.map((u, i) => (
-        <div key={u.l} style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-          <div className="countdown-unit glass" style={{ textAlign: 'center', padding: '4px 6px', borderRadius: 6, minWidth: 30 }}>
-            <div style={{ fontSize: 14, fontWeight: 900, color: '#fff', lineHeight: 1 }}>{String(u.v).padStart(2, '0')}</div>
-            <div style={{ fontSize: 8, color: '#737373', fontWeight: 600, textTransform: 'uppercase', marginTop: 2, letterSpacing: '0.02em' }}>{u.l}</div>
-          </div>
-          {i < 3 && <span style={{ color: '#525252', fontSize: 12, fontWeight: 700, marginBottom: 8 }}>:</span>}
+      <div className="flex items-start justify-between gap-3">
+        <div className="min-w-0">
+          <p className="eyebrow mb-2 flex items-center gap-1.5">
+            <Flag country={race.country} />
+            Round {Number(race.round)}
+            {first && <span className="text-f1-red">· Next</span>}
+          </p>
+          <h3 className="truncate text-[15px] font-semibold text-mist-50 group-hover:text-white">
+            {race.raceName}
+          </h3>
+          <p className="mt-1 truncate text-[11.5px] text-mist-500">{race.circuitName}</p>
         </div>
-      ))}
-    </div>
+        <TrackImage circuit={race.locality} round={race.round} className="size-14" />
+      </div>
+
+      <div className="mt-auto flex items-end justify-between gap-3 border-t border-white/[0.06] pt-3.5">
+        <div className="min-w-0">
+          <p className="truncate font-mono text-[11px] text-mist-300">
+            {formatShortDate(start)} · {formatTimeZoned(start)}
+          </p>
+          <p className="mt-1 font-mono text-[10px] text-mist-500">
+            {relativeDayLabel(start ?? race.date)}
+          </p>
+        </div>
+        {first ? (
+          <CountdownStat target={start} label="to go" />
+        ) : (
+          <Stat
+            label="Local"
+            value={
+              <span className="text-[15px]">
+                {start ? formatTimeZoned(start).split(' ')[0] : 'TBA'}
+              </span>
+            }
+            className="text-right"
+          />
+        )}
+      </div>
+    </Link>
   );
 }

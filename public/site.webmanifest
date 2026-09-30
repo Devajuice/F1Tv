@@ -1,1 +1,25 @@
-{"name":"F1TV - Live F1 Streaming","short_name":"F1TV","description":"Watch Formula 1 live streams, highlights, standings, and race data","icons":[{"src":"/android-chrome-192x192.png","sizes":"192x192","type":"image/png"},{"src":"/android-chrome-512x512.png","sizes":"512x512","type":"image/png"}],"theme_color":"#e10600","background_color":"#050505","display":"standalone","start_url":"/home","orientation":"any"}
+{
+  "name": "F1TV — Live Formula 1 Streaming & Timing",
+  "short_name": "F1TV",
+  "description": "Live Formula 1 streams, session countdowns, live track weather, results, grid, standings and highlights.",
+  "id": "/home",
+  "start_url": "/home",
+  "scope": "/",
+  "display": "standalone",
+  "orientation": "any",
+  "theme_color": "#07080a",
+  "background_color": "#07080a",
+  "categories": ["sports", "entertainment", "news"],
+  "icons": [
+    { "src": "/favicon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" },
+    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "/android-chrome-192x192.png", "sizes": "192x192", "type": "image/png", "purpose": "maskable" },
+    { "src": "/android-chrome-512x512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ],
+  "shortcuts": [
+    { "name": "Watch Live", "short_name": "Live", "url": "/stream" },
+    { "name": "Standings", "short_name": "Standings", "url": "/standings" },
+    { "name": "Calendar", "short_name": "Calendar", "url": "/calendar" }
+  ]
+}

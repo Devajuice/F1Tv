@@ -1,286 +1,374 @@
-import { useState, useEffect } from 'react';
-import { Calendar, MapPin, Clock, ChevronRight, Download } from 'lucide-react';
-import { getSchedule } from '../api/f1Api';
-import type { Race } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
-import { getTrackImageUrl } from '../api/openf1';
+import { useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { CalendarPlus, ChevronDown, MapPin } from 'lucide-react';
+import { getSchedule, type Race } from '../api/f1Api';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import {
+  formatDate,
+  formatLongDate,
+  formatTimeZoned,
+  joinDateTime,
+  relativeDayLabel,
+} from '../lib/format';
+import { getRaceStart, getRaceStatus } from '../lib/races';
+import { Button } from '../components/ui/Button';
+import { Badge, LiveDot } from '../components/ui/Badge';
+import { Flag, TrackImage } from '../components/ui/Atoms';
+import { CountdownStat } from '../components/ui/Countdown';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { EmptyState, ErrorState } from '../components/ui/States';
+import { SkeletonRows } from '../components/ui/Skeleton';
+import { Tabs } from '../components/ui/Tabs';
+import { cn } from '../lib/cn';
 
-function formatRaceDate(date: string, time?: string): string {
-  const d = new Date(date + (time ? `T${time}` : 'T14:00:00Z'));
-  return d.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
+type Filter = 'all' | 'upcoming' | 'completed';
+
+const FILTERS: Array<{ value: Filter; label: string }> = [
+  { value: 'all', label: 'All rounds' },
+  { value: 'upcoming', label: 'Upcoming' },
+  { value: 'completed', label: 'Completed' },
+];
+
+export default function RaceCalendar() {
+  useDocumentTitle('Race Calendar');
+  const [filter, setFilter] = useState<Filter>('all');
+  const [expanded, setExpanded] = useState<string | null>(null);
+
+  const { data: races, loading, error, refresh } = useAsync(() => getSchedule(), []);
+
+  const now = Date.now();
+  const nextRace = useMemo(
+    () => (races ?? []).find((r) => getRaceStatus(r, now) !== 'completed') ?? null,
+    [races, now],
+  );
+
+  const visible = useMemo(() => {
+    const list = races ?? [];
+    if (filter === 'all') return list;
+    return list.filter((r) =>
+      filter === 'upcoming'
+        ? getRaceStatus(r, now) !== 'completed'
+        : getRaceStatus(r, now) === 'completed',
+    );
+  }, [races, filter, now]);
+
+  const counts = useMemo(() => {
+    const list = races ?? [];
+    return {
+      all: list.length,
+      upcoming: list.filter((r) => getRaceStatus(r, now) !== 'completed').length,
+      completed: list.filter((r) => getRaceStatus(r, now) === 'completed').length,
+    };
+  }, [races, now]);
+
+  return (
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow={`${new Date().getFullYear()} Season`}
+        title="Race Calendar"
+        description="Every round of the championship with circuit layouts, local start times, and one-click calendar export."
+        actions={
+          <Tabs
+            items={FILTERS.map((f) => ({ ...f, hint: String(counts[f.value]) }))}
+            value={filter}
+            onChange={setFilter}
+            size="sm"
+            aria-label="Filter rounds"
+          />
+        }
+      />
+
+      {/* ---- Next race feature ---- */}
+      {nextRace && (
+        <Panel className="notched relative mb-4 overflow-hidden">
+          <div aria-hidden className="speedlines pointer-events-none absolute inset-0 opacity-40" />
+          <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
+            <TrackImage circuit={nextRace.locality} round={nextRace.round} className="size-20 sm:size-24" />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-2 flex items-center gap-2">
+                <span className="accent-bar inline-block h-3 w-1.5" />
+                Next race · Round {Number(nextRace.round)}
+              </p>
+              <h2 className="font-display text-2xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-3xl">
+                {nextRace.raceName}
+              </h2>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-mist-400">
+                <Flag country={nextRace.country} />
+                <span className="inline-flex items-center gap-1.5">
+                  <MapPin size={11} />
+                  {nextRace.circuitName}, {nextRace.locality}
+                </span>
+              </p>
+              <p className="mt-3 font-mono text-[12px] text-mist-300">
+                {formatLongDate(nextRace.date)} · {formatTimeZoned(getRaceStart(nextRace))}
+              </p>
+            </div>
+            <div className="shrink-0 sm:text-right">
+              <CountdownStat target={getRaceStart(nextRace)} label="to lights out" />
+              <Button
+                size="sm"
+                variant="secondary"
+                className="mt-3"
+                onClick={() => downloadICS(nextRace)}
+              >
+                <CalendarPlus size={12} />
+                Add
+              </Button>
+            </div>
+          </div>
+        </Panel>
+      )}
+
+      {/* ---- Round list ---- */}
+      <Panel flush>
+        {error ? (
+          <ErrorState message={error.message} onRetry={refresh} />
+        ) : loading ? (
+          <div className="p-5 sm:p-6">
+            <SkeletonRows rows={8} />
+          </div>
+        ) : visible.length === 0 ? (
+          <EmptyState
+            title="Nothing here"
+            description={
+              filter === 'upcoming'
+                ? 'Every round on the calendar has been run.'
+                : filter === 'completed'
+                  ? 'No completed rounds yet this season.'
+                  : 'The calendar has not been published.'
+            }
+            action={
+              filter !== 'all' && (
+                <Button variant="secondary" size="sm" onClick={() => setFilter('all')}>
+                  Show all rounds
+                </Button>
+              )
+            }
+          />
+        ) : (
+          <ul>
+            {visible.map((race) => (
+              <RaceRow
+                key={race.round}
+                race={race}
+                isNext={race.round === nextRace?.round}
+                expanded={expanded === race.round}
+                onToggle={() =>
+                  setExpanded((e) => (e === race.round ? null : race.round))
+                }
+                now={now}
+              />
+            ))}
+          </ul>
+        )}
+      </Panel>
+    </PageContainer>
+  );
 }
 
-function formatRaceTime(time?: string): string {
-  if (!time) return 'TBC';
-  const [h, m] = time.replace('Z', '').split(':').map(Number);
-  const d = new Date();
-  d.setUTCHours(h, m);
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', timeZoneName: 'short' });
+function RaceRow({
+  race,
+  isNext,
+  expanded,
+  onToggle,
+  now,
+}: {
+  race: Race;
+  isNext: boolean;
+  expanded: boolean;
+  onToggle: () => void;
+  now: number;
+}) {
+  const status = getRaceStatus(race, now);
+  const start = getRaceStart(race);
+
+  return (
+    <li className="border-b border-white/[0.05] last:border-0">
+      <button
+        type="button"
+        onClick={onToggle}
+        aria-expanded={expanded}
+        className={cn(
+          'group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors sm:gap-4 sm:px-6',
+          expanded ? 'bg-white/[0.03]' : 'hover:bg-white/[0.025]',
+        )}
+      >
+        <span className="num w-7 shrink-0 text-[13px] font-bold text-mist-500 transition-colors group-hover:text-mist-300">
+          {String(Number(race.round)).padStart(2, '0')}
+        </span>
+
+        <TrackImage circuit={race.locality} round={race.round} className="size-11 shrink-0" />
+
+        <span className="min-w-0 flex-1">
+          <span className="flex items-center gap-2">
+            <Flag country={race.country} />
+            <span className="truncate text-[13.5px] font-semibold text-mist-50">
+              {race.raceName}
+            </span>
+          </span>
+          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10.5px] text-mist-500">
+            <span className="truncate">{race.circuitName}</span>
+            <span className="text-mist-600">·</span>
+            <span className="whitespace-nowrap">
+              {formatDate(start ?? race.date)} · {formatTimeZoned(start).split(' ')[0]}
+            </span>
+          </span>
+        </span>
+
+        <span className="hidden w-24 shrink-0 text-right sm:block">
+          <span className="block font-mono text-[10.5px] text-mist-400">
+            {relativeDayLabel(start ?? race.date, now)}
+          </span>
+        </span>
+
+        {status === 'live' ? (
+          <LiveDot label="Live" className="shrink-0" />
+        ) : status === 'completed' ? (
+          <Badge tone="done" className="shrink-0">
+            Done
+          </Badge>
+        ) : isNext ? (
+          <Badge tone="live" className="shrink-0">
+            Next
+          </Badge>
+        ) : (
+          <span className="num hidden shrink-0 font-mono text-[10px] text-mist-600 sm:block">
+            R{race.round}
+          </span>
+        )}
+
+        <ChevronDown
+          size={14}
+          className={cn(
+            'shrink-0 text-mist-500 transition-transform duration-300 ease-expo',
+            expanded && 'rotate-180 text-mist-300',
+          )}
+        />
+      </button>
+
+      {expanded && (
+        <div className="animate-slide-down grid gap-5 bg-ink-900/40 px-4 py-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-6 sm:px-6">
+          <TrackImage
+            circuit={race.locality}
+            round={race.round}
+            className="hidden size-28 sm:block"
+          />
+
+          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] sm:max-w-md">
+            <div>
+              <dt className="eyebrow mb-1.5">Circuit</dt>
+              <dd className="text-mist-200">
+                {race.circuitName}
+                <span className="mt-0.5 block text-[11px] text-mist-500">
+                  {race.locality}, {race.country}
+                </span>
+              </dd>
+            </div>
+            <div>
+              <dt className="eyebrow mb-1.5">Start</dt>
+              <dd className="text-mist-200">
+                {formatDate(start ?? race.date)}
+                <span className="mt-0.5 block font-mono text-[11px] text-mist-400">
+                  {formatTimeZoned(start)} your time
+                </span>
+              </dd>
+            </div>
+            {race.qualifyingDate && (
+              <div>
+                <dt className="eyebrow mb-1.5">Qualifying</dt>
+                <dd className="text-mist-200">
+                  {formatDate(joinDateTime(race.qualifyingDate, race.qualifyingTime))}
+                  <span className="mt-0.5 block font-mono text-[11px] text-mist-400">
+                    {formatTimeZoned(joinDateTime(race.qualifyingDate, race.qualifyingTime))}
+                  </span>
+                </dd>
+              </div>
+            )}
+            <div>
+              <dt className="eyebrow mb-1.5">Round</dt>
+              <dd className="text-mist-200">
+                {Number(race.round)} of {new Date().getFullYear()}
+              </dd>
+            </div>
+          </dl>
+
+          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+            <Button size="sm" variant="secondary" onClick={() => downloadICS(race)}>
+              <CalendarPlus size={12} />
+              Add to calendar
+            </Button>
+            {status === 'completed' && (
+              <Link
+                to={`/results?round=${race.round}`}
+                className="inline-flex h-8 items-center gap-2 rounded-sm border border-white/12 bg-white/5 px-3 text-[10px] font-semibold tracking-[0.08em] whitespace-nowrap text-mist-100 uppercase transition-colors hover:border-white/25 hover:bg-white/9"
+              >
+                Result
+              </Link>
+            )}
+          </div>
+        </div>
+      )}
+    </li>
+  );
 }
 
-function getRaceStatus(date: string, time?: string): 'completed' | 'live' | 'upcoming' {
-  const now = new Date();
-  const raceDate = new Date(date + (time ? `T${time}` : 'T14:00:00Z'));
-  const endDate = new Date(raceDate.getTime() + 2 * 3600000);
-  if (now > endDate) return 'completed';
-  if (now >= raceDate && now <= endDate) return 'live';
-  return 'upcoming';
+/* -------------------------------------------------------------------------
+   .ics export
+   RFC 5547 requires CRLF line endings and UTC timestamps; a Grand Prix is
+   booked as a two-hour block from lights out.
+   ------------------------------------------------------------------------- */
+
+function icsTimestamp(date: Date): string {
+  return date.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
 }
 
-function daysUntil(date: string): number {
-  const now = new Date();
-  const race = new Date(date);
-  const diff = race.getTime() - now.getTime();
-  return Math.ceil(diff / (1000 * 60 * 60 * 24));
+function escapeICS(value: string): string {
+  return value
+    .replace(/\\/g, '\\\\')
+    .replace(/;/g, '\\;')
+    .replace(/,/g, '\\,')
+    .replace(/\r?\n/g, '\\n');
 }
 
-function generateICS(race: Race): string {
-  const start = new Date(race.date + (race.time ? `T${race.time}` : 'T14:00:00Z'));
-  const end = new Date(start.getTime() + 2 * 3600000);
-  const fmt = (d: Date) => d.toISOString().replace(/[-:]/g, '').replace(/\.\d{3}/, '');
-  return [
+function downloadICS(race: Race): void {
+  const start = getRaceStart(race) ?? new Date(`${race.date}T12:00:00Z`);
+  const end = new Date(start.getTime() + 2 * 60 * 60 * 1000);
+
+  const body = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//F1TV//EN',
+    'PRODID:-//F1TV//Race Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
     'BEGIN:VEVENT',
-    `DTSTART:${fmt(start)}`,
-    `DTEND:${fmt(end)}`,
-    `SUMMARY:${race.raceName}`,
-    `LOCATION:${race.circuitName}, ${race.country}`,
-    `DESCRIPTION:${race.raceName} - ${race.circuitName}`,
+    `UID:${race.season}-${race.round}-${race.circuitId}@f1tv`,
+    `DTSTAMP:${icsTimestamp(new Date())}`,
+    `DTSTART:${icsTimestamp(start)}`,
+    `DTEND:${icsTimestamp(end)}`,
+    `SUMMARY:${escapeICS(`${race.raceName} — Formula 1`)}`,
+    `LOCATION:${escapeICS(`${race.circuitName}, ${race.locality}, ${race.country}`)}`,
+    `DESCRIPTION:${escapeICS(
+      `Round ${race.round} of the ${race.season} Formula 1 World Championship.`,
+    )}`,
+    `URL:${escapeICS(`https://www.formula1.com/en/racing/${race.season}/races`)}`,
+    'BEGIN:VALARM',
+    'TRIGGER:-PT30M',
+    'ACTION:DISPLAY',
+    `DESCRIPTION:${escapeICS(race.raceName)}`,
+    'END:VALARM',
     'END:VEVENT',
     'END:VCALENDAR',
   ].join('\r\n');
-}
 
-function downloadICS(race: Race) {
-  const ics = generateICS(race);
-  const blob = new Blob([ics], { type: 'text/calendar;charset=utf-8' });
+  const blob = new Blob([body], { type: 'text/calendar;charset=utf-8' });
   const url = URL.createObjectURL(blob);
-  const a = document.createElement('a');
-  a.href = url;
-  a.download = `${race.raceName.replace(/[^a-zA-Z0-9]/g, '_')}.ics`;
-  a.click();
+  const link = document.createElement('a');
+  link.href = url;
+  link.download = `f1-${race.season}-r${Number(race.round).toString().padStart(2, '0')}.ics`;
+  document.body.appendChild(link);
+  link.click();
+  link.remove();
   URL.revokeObjectURL(url);
-}
-
-const COUNTRY_FLAGS: Record<string, string> = {
-  'Bahrain': '🇧🇭', 'Saudi Arabia': '🇸🇦', 'Australia': '🇦🇺', 'Japan': '🇯🇵',
-  'China': '🇨🇳', 'USA': '🇺🇸', 'Italy': '🇮🇹', 'Monaco': '🇲🇨',
-  'Canada': '🇨🇦', 'Spain': '🇪🇸', 'Austria': '🇦🇹', 'United Kingdom': '🇬🇧',
-  'Hungary': '🇭🇺', 'Belgium': '🇧🇪', 'Netherlands': '🇳🇱', 'Singapore': '🇸🇬',
-  'Azerbaijan': '🇦🇿', 'Mexico': '🇲🇽', 'Brazil': '🇧🇷', 'Qatar': '🇶🇦',
-  'Abu Dhabi': '🇦🇪', 'Las Vegas': '🇺🇸', 'Miami': '🇺🇸', 'Emilia Romagna': '🇮🇹',
-};
-
-export default function RaceCalendar() {
-  const [races, setRaces] = useState<Race[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedRound, setSelectedRound] = useState<string | null>(null);
-
-  useEffect(() => {
-    getSchedule()
-      .then(setRaces)
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  const nextRace = races.find((r) => getRaceStatus(r.date, r.time) === 'upcoming');
-
-  return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        <h1 className="fade-in-up" style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Calendar size={22} color="#e10600" /> {new Date().getFullYear()} Race Calendar
-        </h1>
-
-        {loading ? (
-          <div>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 14, padding: 16, marginBottom: 10, display: 'flex', alignItems: 'center', gap: 14 }}>
-                <div className="skeleton skeleton-circle" style={{ width: 56, height: 56, flexShrink: 0 }} />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div className="skeleton skeleton-text" style={{ width: '60%', height: 14 }} />
-                  <div className="skeleton skeleton-text" style={{ width: '40%', height: 10 }} />
-                </div>
-                <div className="skeleton skeleton-text" style={{ width: 50, height: 14 }} />
-              </div>
-            ))}
-          </div>
-        ) : races.length === 0 ? (
-          <div className="glass" style={{ borderRadius: 14, padding: 48, textAlign: 'center', color: '#737373' }}>
-            No race calendar data available
-          </div>
-        ) : (
-          <div>
-            {/* Next Race Banner */}
-            {nextRace && (
-              <div className="glass-strong scale-in" style={{ borderRadius: 14, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14, borderColor: 'rgba(225,6,0,0.2)' }}>
-                <div style={{
-                  width: 56, height: 56, borderRadius: 10, overflow: 'hidden', flexShrink: 0,
-                  background: 'rgba(225,6,0,0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center',
-                }}>
-                  <img
-                    src={getTrackImageUrl(nextRace.locality)}
-                    alt={nextRace.circuitName}
-                    style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                    onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                  />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase' as const, letterSpacing: '0.1em', color: '#e10600', marginBottom: 2 }}>
-                    Next Race
-                  </div>
-                  <div style={{ fontSize: 15, fontWeight: 700, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                    {nextRace.raceName}
-                  </div>
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 6, marginTop: 2, fontSize: 12, color: '#737373' }}>
-                    <MapPin size={11} /> {nextRace.circuitName}
-                    <span style={{ color: '#525252' }}>|</span>
-                    <Clock size={11} /> {formatRaceDate(nextRace.date, nextRace.time)}
-                  </div>
-                </div>
-                <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                  <div style={{ fontSize: 28, fontWeight: 900, color: '#e10600' }}>{daysUntil(nextRace.date)}</div>
-                  <div style={{ fontSize: 10, color: '#737373', textTransform: 'uppercase' as const }}>days</div>
-                </div>
-              </div>
-            )}
-
-            {/* Race List */}
-            {races.map((race, i) => {
-              const status = getRaceStatus(race.date, race.time);
-              const isNext = race.round === nextRace?.round;
-              const flag = COUNTRY_FLAGS[race.country] ?? '🏁';
-              const expanded = selectedRound === race.round;
-
-              return (
-                <div key={race.round} className="stagger-in glass-hover" style={{ marginBottom: 6 }}>
-                  <button
-                    onClick={() => setSelectedRound(expanded ? null : race.round)}
-                    style={{
-                      width: '100%', display: 'flex', alignItems: 'center', gap: 12,
-                      padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-                      background: isNext ? 'rgba(225,6,0,0.06)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent',
-                      border: isNext ? '1px solid rgba(225,6,0,0.2)' : '1px solid rgba(255,255,255,0.05)',
-                      textAlign: 'left' as const, fontFamily: 'inherit', transition: 'all 0.15s',
-                    }}
-                    onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.05)'; }}
-                    onMouseLeave={(e) => { e.currentTarget.style.background = isNext ? 'rgba(225,6,0,0.06)' : i % 2 === 0 ? 'rgba(255,255,255,0.02)' : 'transparent'; }}
-                  >
-                    {/* Round number */}
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      fontSize: 12, fontWeight: 800, color: status === 'completed' ? '#525252' : '#fff',
-                      background: status === 'completed' ? 'rgba(255,255,255,0.03)' : 'rgba(225,6,0,0.1)',
-                      flexShrink: 0,
-                    }}>
-                      {race.round}
-                    </div>
-
-                    {/* Circuit image */}
-                    <div style={{
-                      width: 48, height: 48, borderRadius: 8, overflow: 'hidden', flexShrink: 0,
-                      background: 'rgba(255,255,255,0.03)',
-                    }}>
-                      <img
-                        src={getTrackImageUrl(race.locality)}
-                        alt={race.circuitName}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover', opacity: status === 'completed' ? 0.5 : 1 }}
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    </div>
-
-                    {/* Info */}
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div style={{
-                        fontSize: 13, fontWeight: 600, color: status === 'completed' ? '#737373' : '#fff',
-                        overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-                      }}>
-                        {flag} {race.raceName}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#525252', marginTop: 1 }}>
-                        {race.circuitName}
-                      </div>
-                    </div>
-
-                    {/* Date */}
-                    <div style={{ textAlign: 'right', flexShrink: 0 }}>
-                      <div style={{ fontSize: 12, fontWeight: 600, color: status === 'completed' ? '#525252' : '#a3a3a3' }}>
-                        {formatRaceDate(race.date, race.time)}
-                      </div>
-                      <div style={{ fontSize: 11, color: '#525252' }}>
-                        {formatRaceTime(race.time)}
-                      </div>
-                    </div>
-
-                    {/* Status / Expand */}
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6, flexShrink: 0 }}>
-                      {status === 'completed' && (
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#525252', background: 'rgba(255,255,255,0.05)', padding: '2px 6px', borderRadius: 4 }}>
-                          DONE
-                        </span>
-                      )}
-                      {status === 'live' && (
-                        <span className="pulse-dot" style={{ fontSize: 9, fontWeight: 700, color: '#ef4444', background: 'rgba(239,68,68,0.1)', padding: '2px 6px', borderRadius: 4 }}>
-                          LIVE
-                        </span>
-                      )}
-                      {isNext && (
-                        <span style={{ fontSize: 9, fontWeight: 700, color: '#e10600', background: 'rgba(225,6,0,0.1)', padding: '2px 6px', borderRadius: 4 }}>
-                          NEXT
-                        </span>
-                      )}
-                      <ChevronRight
-                        size={14}
-                        color="#525252"
-                        style={{ transform: expanded ? 'rotate(90deg)' : 'none', transition: 'transform 0.2s' }}
-                      />
-                    </div>
-                  </button>
-
-                  {/* Expanded Details */}
-                  {expanded && (
-                    <div className="slide-down" style={{
-                      padding: '10px 14px 14px', margin: '0 6px 6px',
-                      background: 'rgba(255,255,255,0.02)', borderRadius: 10,
-                      borderTop: '1px solid rgba(255,255,255,0.04)',
-                    }}>
-                      <div style={{ display: 'flex', flexWrap: 'wrap', gap: 12, marginBottom: 10 }}>
-                        <div style={{ fontSize: 12, color: '#a3a3a3', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <MapPin size={12} /> {race.circuitName}, {race.country}
-                        </div>
-                        <div style={{ fontSize: 12, color: '#a3a3a3', display: 'flex', alignItems: 'center', gap: 4 }}>
-                          <Clock size={12} /> {formatRaceDate(race.date, race.time)} at {formatRaceTime(race.time)}
-                        </div>
-                      </div>
-                      <button
-                        onClick={(e) => { e.stopPropagation(); downloadICS(race); }}
-                        style={{
-                          display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
-                          borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-                          background: 'rgba(225,6,0,0.1)', border: '1px solid rgba(225,6,0,0.2)',
-                          color: '#e10600', fontFamily: 'inherit', transition: 'all 0.15s',
-                        }}
-                        onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(225,6,0,0.2)'; }}
-                        onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(225,6,0,0.1)'; }}
-                      >
-                        <Download size={12} /> Add to Calendar
-                      </button>
-                    </div>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <Footer />
-    </PageWrapper>
-  );
 }

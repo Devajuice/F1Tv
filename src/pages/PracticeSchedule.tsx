@@ -1,202 +1,250 @@
-import { useState, useEffect } from 'react';
-import { Clock, ChevronDown } from 'lucide-react';
-import { getSchedule, getPracticeSchedule } from '../api/f1Api';
-import type { Race, PracticeSession } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
-
-function formatSessionTime(date: string, time: string): string {
-  if (!date) return '--:--';
-  const iso = time ? `${date}T${time}` : `${date}T14:00:00Z`;
-  const d = new Date(iso);
-  if (isNaN(d.getTime())) return '--:--';
-  return d.toLocaleTimeString('en-US', { hour: '2-digit', minute: '2-digit', hour12: false });
-}
-
-function formatDate(iso: string): string {
-  if (!iso) return '';
-  const [y, m, d] = iso.split('-').map(Number);
-  const date = new Date(y, m - 1, d);
-  if (isNaN(date.getTime())) return '';
-  return date.toLocaleDateString('en-US', { weekday: 'short', month: 'short', day: 'numeric' });
-}
-
-function getSessionColor(name: string): string {
-  if (name.startsWith('Practice')) return '#60a5fa';
-  if (name === 'Sprint Qualifying') return '#eab308';
-  if (name === 'Sprint') return '#a855f7';
-  if (name === 'Qualifying') return '#f87171';
-  if (name === 'Race') return '#e10600';
-  return '#737373';
-}
+import { useEffect, useMemo, useState } from 'react';
+import { Link } from 'react-router-dom';
+import { Bell, CalendarDays, Clock, Moon, Sun } from 'lucide-react';
+import { getPracticeSchedule, getSchedule, type PracticeSession, type Race } from '../api/f1Api';
+import { getSessionMeta } from '../data/sessions';
+import { useSession } from '../context/SessionContext';
+import { useNotifications } from '../context/NotificationsContext';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import {
+  formatDate,
+  formatTime,
+  formatTimeZoned,
+  joinDateTime,
+  relativeDayLabel,
+} from '../lib/format';
+import { getRaceStart, getUpcomingRaces } from '../lib/races';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { RaceSelect } from '../components/ui/RaceSelect';
+import { LiveDot } from '../components/ui/Badge';
+import { Flag, TrackImage } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { SkeletonRows } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { cn } from '../lib/cn';
 
 export default function PracticeSchedule() {
-  const [races, setRaces] = useState<Race[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string>('');
-  const [sessions, setSessions] = useState<PracticeSession[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resultLoading, setResultLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
+  useDocumentTitle('Weekend Schedule');
+  const [round, setRound] = useState('');
+  const { live } = useSession();
+  const notifications = useNotifications();
+
+  const { data: races, loading: loadingRaces } = useAsync<Race[]>(
+    () => getSchedule(),
+    [],
+  );
+
+  // Upcoming rounds first — this page is about what's still to come, which is
+  // what the previous version got backwards.
+  const upcoming = useMemo(() => getUpcomingRaces(races ?? []), [races]);
 
   useEffect(() => {
-    getSchedule()
-      .then((all) => {
-        const now = new Date();
-        const upcoming = all.filter((r) => {
-          const raceDate = new Date(r.date + (r.time ? `T${r.time}` : 'T14:00:00Z'));
-          return raceDate > now;
-        });
-        setRaces(upcoming);
-        if (upcoming.length > 0) setSelectedRound(upcoming[0].round);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
+    if (round || upcoming.length === 0) return;
+    setRound(upcoming[0].round);
+  }, [upcoming, round]);
 
-  useEffect(() => {
-    if (!selectedRound) return;
-    let cancelled = false;
-    setResultLoading(true);
-    getPracticeSchedule(new Date().getFullYear().toString(), selectedRound)
-      .then((s) => { if (!cancelled) setSessions(s); })
-      .catch(() => { if (!cancelled) setSessions([]); })
-      .finally(() => { if (!cancelled) setResultLoading(false); });
-    return () => { cancelled = true; };
-  }, [selectedRound]);
+  const race = upcoming.find((r) => r.round === round) ?? null;
+  const raceStart = race ? getRaceStart(race) : null;
 
-  const selectedRace = races.find((r) => r.round === selectedRound);
+  const {
+    data: sessions,
+    loading,
+    error,
+    refresh,
+    refreshing,
+    lastFetchedAt,
+  } = useAsync<PracticeSession[]>(
+    async () => {
+      if (!race) return [];
+      return getPracticeSchedule(race.season, race.round);
+    },
+    [race?.season, race?.round],
+    { enabled: Boolean(race) },
+  );
+
+  const rows = sessions ?? [];
+  const liveSessionName = live?.session_name;
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        <h1 className="fade-in-up" style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Clock size={22} color="#e10600" /> Session Schedule
-        </h1>
-
-        <div className="fade-in-up" style={{ position: 'relative', marginBottom: 16 }}>
-          <button
-            onClick={() => {
-              setShowDropdown(!showDropdown);
-              if (!showDropdown) {
-                requestAnimationFrame(() => {
-                  const el = document.querySelector('[data-practice-selector]');
-                  if (el) { const r = el.getBoundingClientRect(); setDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width }); }
-                });
-              }
-            }}
-            data-practice-selector
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#d4d4d4', fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <span>{loading ? 'Loading...' : selectedRace ? `Round ${selectedRace.round}: ${selectedRace.raceName}` : 'Select a race'}</span>
-            <ChevronDown size={16} color="#737373" style={{ transform: showDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </button>
-        </div>
-
-        {resultLoading ? (
-          <div>
-            {Array.from({ length: 4 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 12, padding: '14px 16px', marginBottom: 8, display: 'flex', alignItems: 'center', gap: 12 }}>
-                <div className="skeleton skeleton-text" style={{ width: 80, height: 12 }} />
-                <div className="skeleton skeleton-text" style={{ flex: 1, height: 12, maxWidth: '60%' }} />
-                <div className="skeleton skeleton-text" style={{ width: 60, height: 12 }} />
-              </div>
-            ))}
-          </div>
-        ) : sessions.length === 0 ? (
-          <div className="glass" style={{ borderRadius: 14, padding: 48, textAlign: 'center', color: '#737373' }}>
-            No session schedule available for this round
-          </div>
-        ) : (
-          <div className="glass scale-in" style={{ borderRadius: 14, overflow: 'hidden' }}>
-            <div className="hidden-mobile" style={{
-              display: 'flex', alignItems: 'center', padding: '10px 14px',
-              background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(12px)',
-              position: 'sticky', top: 0, zIndex: 2,
-              borderBottom: '1px solid rgba(255,255,255,0.06)',
-            }}>
-              <span style={thStyle}>Session</span>
-              <span style={{ ...thStyle, flex: 1, textAlign: 'left' }}>Date</span>
-              <span style={{ ...thStyle, textAlign: 'right' }}>Local Time</span>
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow="Local times"
+        title="Weekend Schedule"
+        description="Every session of the selected Grand Prix weekend, converted to your local time. Times update automatically as sessions go live."
+        actions={
+          <>
+            <div className="w-full min-w-56 sm:w-72">
+              <RaceSelect
+                races={upcoming}
+                value={round}
+                onChange={setRound}
+                label="Grand Prix"
+              />
             </div>
+            <RefreshHint at={lastFetchedAt} onRefresh={refresh} busy={refreshing} />
+          </>
+        }
+      />
 
-            <div>
-              {sessions.map((s, i) => {
-                const color = getSessionColor(s.name);
-                const label = s.name === 'Practice 1' ? 'P1' : s.name === 'Practice 2' ? 'P2' : s.name === 'Practice 3' ? 'P3' : s.name === 'Sprint Qualifying' ? 'SQ' : s.name === 'Sprint' ? 'SPRINT' : s.name === 'Qualifying' ? 'QUALI' : s.name;
-                return (
-                  <div key={s.name} className="stagger-in" style={{
-                    display: 'flex', alignItems: 'center', padding: '12px 14px',
-                    background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.015)',
-                    borderBottom: i < sessions.length - 1 ? '1px solid rgba(255,255,255,0.02)' : 'none',
-                  }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, minWidth: 140 }}>
-                      <span style={{
-                        fontSize: 10, fontWeight: 700, color, background: `${color}15`,
-                        padding: '3px 8px', borderRadius: 5, minWidth: 28, textAlign: 'center',
-                      }}>
-                        {label}
-                      </span>
-                      <span style={{ fontSize: 13, fontWeight: 600, color: '#fff' }}>{s.name}</span>
-                    </div>
-                    <span style={{ flex: 1, fontSize: 13, color: '#a3a3a3' }}>{formatDate(s.date)}</span>
-                    <span style={{ fontSize: 13, fontWeight: 600, color: '#d4d4d4', fontVariantNumeric: 'tabular-nums' }}>{formatSessionTime(s.date, s.time)}</span>
-                  </div>
-                );
-              })}
+      {race && (
+        <Panel className="notched relative mb-4 overflow-hidden">
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            <TrackImage circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-2 flex items-center gap-2">
+                <span className="accent-bar inline-block h-3 w-1.5" />
+                Round {Number(race.round)} · {race.locality}
+              </p>
+              <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
+                {race.raceName}
+              </h2>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2.5 text-[12px] text-mist-400">
+                <Flag country={race.country} />
+                {race.circuitName}
+                <span className="text-mist-600">·</span>
+                <span className="font-mono">{formatDate(raceStart)}</span>
+              </p>
+            </div>
+            <div className="shrink-0 sm:text-right">
+              <p className="eyebrow mb-1.5 sm:justify-end">Lights out</p>
+              <p className="num text-xl leading-none font-bold text-f1-red-bright">
+                {formatTime(raceStart)}
+              </p>
+              <p className="mt-1.5 font-mono text-[10px] text-mist-500">
+                {relativeDayLabel(raceStart)} · {formatTimeZoned(raceStart).split(' ').slice(1).join(' ')}
+              </p>
             </div>
           </div>
-        )}
-      </div>
-
-      {showDropdown && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowDropdown(false)} />
-          <div className="slide-down" style={{
-            position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width,
-            zIndex: 100, maxHeight: 300, overflowY: 'auto',
-            background: 'rgba(17,17,17,0.98)', backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 6,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-          }}>
-            {races.length === 0 && (
-              <div style={{ padding: 16, textAlign: 'center', color: '#737373', fontSize: 13 }}>No upcoming races</div>
-            )}
-            {races.map((r) => (
-              <button
-                key={r.round}
-                onClick={() => { setSelectedRound(r.round); setShowDropdown(false); }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
-                  background: r.round === selectedRound ? 'rgba(225,6,0,0.1)' : 'transparent',
-                  border: 'none', color: r.round === selectedRound ? '#e10600' : '#d4d4d4',
-                  fontSize: 13, fontWeight: r.round === selectedRound ? 700 : 500,
-                  textAlign: 'left' as const, fontFamily: 'inherit',
-                }}
-              >
-                <span style={{ fontSize: 11, color: '#525252', minWidth: 24 }}>R{r.round}</span>
-                <span style={{ flex: 1 }}>{r.raceName}</span>
-              </button>
-            ))}
-          </div>
-        </>
+        </Panel>
       )}
 
-      <Footer />
-    </PageWrapper>
+      {/* ---- Session list ---- */}
+      <Panel flush>
+        {error ? (
+          <ErrorState message={error.message} onRetry={refresh} />
+        ) : loadingRaces || loading ? (
+          <div className="p-5 sm:p-6">
+            <SkeletonRows rows={6} />
+          </div>
+        ) : rows.length === 0 ? (
+          <EmptyState
+            icon={<CalendarDays size={18} />}
+            title="No session times yet"
+            description="Practice, qualifying and race times are published closer to the weekend."
+          />
+        ) : (
+          <ul className="divide-y divide-white/[0.05]">
+            {rows.map((session) => {
+              const start = joinDateTime(session.date, session.time);
+              const meta = getSessionMeta(session.name);
+              const isLive = liveSessionName === session.name;
+              const isPast = start ? start.getTime() + 90 * 60_000 < Date.now() : false;
+
+              return (
+                <li
+                  key={`${session.name}-${session.date}`}
+                  className={cn(
+                    'flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 transition-colors sm:px-6',
+                    isLive
+                      ? 'bg-live/8'
+                      : isPast
+                        ? 'opacity-45'
+                        : 'hover:bg-white/[0.025]',
+                  )}
+                >
+                  <span
+                    className={cn(
+                      'num flex h-10 w-16 shrink-0 items-center justify-center rounded-xs border font-mono text-[10.5px] font-bold tracking-[0.02em]',
+                      meta.surface,
+                      meta.color,
+                    )}
+                  >
+                    {meta.badge}
+                  </span>
+
+                  <span className="min-w-40 flex-1">
+                    <span className="block text-[13.5px] font-semibold text-mist-50">
+                      {meta.label}
+                    </span>
+                    <span className="mt-1 flex items-center gap-1.5 font-mono text-[10.5px] text-mist-500">
+                      <Clock size={9} />
+                      {formatDate(start)} · {relativeDayLabel(start)}
+                    </span>
+                  </span>
+
+                  {isLive && <LiveDot label="Live" className="shrink-0" />}
+
+                  <span className="ml-auto shrink-0 text-right">
+                    <span className="num block text-[17px] leading-none font-bold text-mist-50">
+                      {formatTimeZoned(start)}
+                    </span>
+                    <span className="mt-1 block font-mono text-[9.5px] text-mist-500">
+                      your time
+                    </span>
+                  </span>
+                </li>
+              );
+            })}
+          </ul>
+        )}
+      </Panel>
+
+      {/* ---- Notification prompt ---- */}
+      <Panel className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div className="flex items-start gap-3.5">
+          <span
+            className={cn(
+              'flex size-10 shrink-0 items-center justify-center rounded-full border',
+              notifications.enabled
+                ? 'border-turf/35 bg-turf/10 text-turf'
+                : 'border-white/10 bg-white/[0.04] text-mist-400',
+            )}
+          >
+            <Bell size={16} />
+          </span>
+          <div className="min-w-0">
+            <p className="text-[13.5px] font-semibold text-mist-50">
+              {notifications.enabled
+                ? 'Session alerts are on'
+                : 'Never miss lights out'}
+            </p>
+            <p className="mt-1 text-[12px] leading-relaxed text-mist-400">
+              {notifications.enabled
+                ? "We'll ping you 5 minutes before each session and again when it goes live."
+                : notifications.state === 'denied'
+                  ? 'Alerts are blocked for this site in your browser settings.'
+                  : 'Get a browser alert 5 minutes before each session, and one when it goes live.'}
+            </p>
+          </div>
+        </div>
+        {notifications.state !== 'denied' && notifications.state !== 'unsupported' && (
+          <Button
+            size="sm"
+            variant={notifications.enabled ? 'secondary' : 'primary'}
+            onClick={() =>
+              notifications.enabled ? notifications.disable() : void notifications.enable()
+            }
+            className="shrink-0"
+          >
+            {notifications.enabled ? 'Turn off' : 'Enable alerts'}
+          </Button>
+        )}
+      </Panel>
+
+      {/* ---- Day/night note ---- */}
+      <p className="mt-4 flex items-center justify-center gap-4 text-center font-mono text-[10px] text-mist-600">
+        <span className="inline-flex items-center gap-1.5">
+          <Sun size={10} /> Day sessions
+        </span>
+        <span className="inline-flex items-center gap-1.5">
+          <Moon size={10} /> Night races converted to local time
+        </span>
+        <Link to="/calendar" className="link-wipe text-mist-400 hover:text-mist-200">
+          Full calendar
+        </Link>
+      </p>
+    </PageContainer>
   );
 }
-
-const thStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.1em', color: '#737373',
-};

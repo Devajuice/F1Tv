@@ -1,43 +1,97 @@
-const CACHE_NAME = 'f1tv-v1';
-const STATIC_ASSETS = ['/', '/home'];
+const VERSION = 'v3';
+const SHELL_CACHE = `f1tv-shell-${VERSION}`;
+const ASSET_CACHE = `f1tv-assets-${VERSION}`;
+const SHELL_URL = '/index.html';
+const OFFLINE_URL = '/offline.html';
+
+const PRECACHE = [SHELL_URL, OFFLINE_URL, '/favicon.svg', '/site.webmanifest'];
+
+/** Static, long-lived assets we can safely serve cache-first. */
+function isStaticAsset(url) {
+  return (
+    url.pathname.startsWith('/assets/') ||
+    url.pathname.startsWith('/fonts/') ||
+    /\.(?:css|js|woff2?|svg|png|jpe?g|webp|avif|ico)$/i.test(url.pathname)
+  );
+}
 
 self.addEventListener('install', (event) => {
   event.waitUntil(
-    caches.open(CACHE_NAME).then((cache) => cache.addAll(STATIC_ASSETS)),
+    caches
+      .open(SHELL_CACHE)
+      // Individually, so one 404 can't abort the whole precache.
+      .then((cache) => Promise.allSettled(PRECACHE.map((url) => cache.add(url))))
+      .then(() => self.skipWaiting()),
   );
-  self.skipWaiting();
 });
 
 self.addEventListener('activate', (event) => {
   event.waitUntil(
-    caches.keys().then((keys) =>
-      Promise.all(keys.filter((k) => k !== CACHE_NAME).map((k) => caches.delete(k))),
-    ),
+    caches
+      .keys()
+      .then((keys) =>
+        Promise.all(
+          keys
+            .filter((k) => k !== SHELL_CACHE && k !== ASSET_CACHE)
+            .map((k) => caches.delete(k)),
+        ),
+      )
+      .then(() => self.clients.claim()),
   );
-  self.clients.claim();
+});
+
+self.addEventListener('message', (event) => {
+  if (event.data === 'SKIP_WAITING') self.skipWaiting();
 });
 
 self.addEventListener('fetch', (event) => {
-  if (event.request.method !== 'GET') return;
+  const { request } = event;
 
-  const url = new URL(event.request.url);
+  if (request.method !== 'GET') return;
 
-  // Don't cache API requests or iframes
-  if (url.pathname.startsWith('/api/') || event.request.mode === 'iframe') return;
+  const url = new URL(request.url);
 
-  event.respondWith(
-    caches.match(event.request).then((cached) => {
-      const fetchPromise = fetch(event.request)
+  // Never cache: live APIs, third-party embeds, and cross-origin requests
+  // (Google Fonts, formula1.com track maps) — they have their own caching.
+  if (url.origin !== self.location.origin) return;
+  if (url.pathname.startsWith('/api/')) return;
+  if (request.mode === 'navigate' && url.pathname === '/stream') return;
+
+  // --- Navigations: network-first so deploys land immediately, shell as
+  // --- fallback so deep links still boot the SPA router offline.
+  if (request.mode === 'navigate') {
+    event.respondWith(
+      fetch(request)
         .then((response) => {
           if (response.ok) {
             const clone = response.clone();
-            caches.open(CACHE_NAME).then((cache) => cache.put(event.request, clone));
+            caches.open(SHELL_CACHE).then((c) => c.put(SHELL_URL, clone));
           }
           return response;
         })
-        .catch(() => cached || new Response('Offline', { status: 503, statusText: 'Offline' }));
+        .catch(async () => {
+          const cached = await caches.match(SHELL_URL);
+          return cached ?? caches.match(OFFLINE_URL);
+        }),
+    );
+    return;
+  }
 
-      return cached || fetchPromise;
-    }),
-  );
+  // --- Hashed build assets: cache-first, they are immutable.
+  if (isStaticAsset(url)) {
+    event.respondWith(
+      caches.match(request).then(
+        (cached) =>
+          cached ??
+          fetch(request).then((response) => {
+            if (response.ok) {
+              const clone = response.clone();
+              caches.open(ASSET_CACHE).then((c) => c.put(request, clone));
+            }
+            return response;
+          }),
+      ),
+    );
+  }
+  // Everything else (icons, manifest) is handled by the browser normally.
 });

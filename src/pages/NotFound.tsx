@@ -1,34 +1,74 @@
 import { Link } from 'react-router-dom';
-import { Home, Film, Trophy } from 'lucide-react';
-import PageWrapper from '../components/PageWrapper';
+import { ArrowLeft, CalendarDays, Home as HomeIcon, Radio } from 'lucide-react';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { PageContainer } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { ButtonLink } from '../components/ui/Button';
+
+const SUGGESTIONS = [
+  { to: '/home', label: 'Dashboard', icon: HomeIcon, hint: 'Live timing, weather and standings' },
+  { to: '/calendar', label: 'Calendar', icon: CalendarDays, hint: 'Every round of the season' },
+  { to: '/stream', label: 'Watch live', icon: Radio, hint: 'Stream the session' },
+] as const;
 
 export default function NotFound() {
+  useDocumentTitle('Page not found');
+
   return (
-    <PageWrapper>
-      <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', minHeight: '100vh', padding: 24, textAlign: 'center' }}>
-        <div className="fade-in-up">
-          <h1 style={{ fontSize: 'clamp(72px, 15vw, 120px)', fontWeight: 900, fontStyle: 'italic', letterSpacing: '-0.05em', lineHeight: 1, marginBottom: 8 }}>
-            <span style={{ color: '#fff' }}>4</span>
-            <span style={{ color: '#e10600' }}>0</span>
-            <span style={{ color: '#fff' }}>4</span>
-          </h1>
-          <p style={{ fontSize: 14, color: '#737373', marginBottom: 32, maxWidth: 300 }}>
-            This page has gone off track. Let's get you back in the race.
-          </p>
+    <PageContainer className="flex min-h-[70vh] items-center justify-center py-12">
+      <div className="w-full max-w-lg text-center">
+        <p className="speedlines mb-6" aria-hidden />
+
+        <p className="eyebrow mb-3 justify-center">Error 404</p>
+        <p className="num font-display text-[80px] leading-none font-black tracking-[-0.05em] text-transparent [-webkit-text-stroke:1.5px_rgba(255,255,255,0.16)] sm:text-[120px]">
+          404
+        </p>
+
+        <h1 className="mt-2 font-display text-2xl font-extrabold tracking-[-0.03em] text-mist-50 sm:text-3xl">
+          Wrong side of the barrier
+        </h1>
+        <p className="mx-auto mt-3 max-w-md text-[13.5px] leading-relaxed text-mist-400">
+          That page isn't on the circuit map. It may have been moved, or the link
+          may be out of date.
+        </p>
+
+        <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
+          <ButtonLink to="/home" variant="primary" size="md">
+            <ArrowLeft size={13} />
+            Back to the paddock
+          </ButtonLink>
+          <ButtonLink to="/calendar" variant="secondary" size="md">
+            Season calendar
+          </ButtonLink>
         </div>
 
-        <div style={{ display: 'flex', gap: 10, flexWrap: 'wrap', justifyContent: 'center' }} className="fade-in-up" >
-          <Link to="/home" className="btn-red" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, textDecoration: 'none' }}>
-            <Home size={15} /> Back to Home
-          </Link>
-          <Link to="/highlights" className="glass glass-hover" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, textDecoration: 'none', color: '#a3a3a3' }}>
-            <Film size={15} /> Highlights
-          </Link>
-          <Link to="/standings" className="glass glass-hover" style={{ display: 'inline-flex', alignItems: 'center', gap: 8, padding: '10px 20px', borderRadius: 10, fontSize: 14, fontWeight: 600, textDecoration: 'none', color: '#a3a3a3' }}>
-            <Trophy size={15} /> Standings
-          </Link>
-        </div>
+        <Panel className="mt-10 text-left">
+          <p className="eyebrow mb-3">Try one of these</p>
+          <ul className="flex flex-col gap-1.5">
+            {SUGGESTIONS.map(({ to, label, icon: Icon, hint }) => (
+              <li key={to}>
+                <Link
+                  to={to}
+                  className="group flex items-center gap-3 rounded-xs px-2.5 py-2.5 transition-colors hover:bg-white/[0.04]"
+                >
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xs border border-white/10 bg-white/[0.04] text-mist-400 transition-colors group-hover:border-f1-red/40 group-hover:text-f1-red-bright">
+                    <Icon size={14} />
+                  </span>
+                  <span className="min-w-0 flex-1">
+                    <span className="block text-[12.5px] font-semibold text-mist-100">
+                      {label}
+                    </span>
+                    <span className="block text-[11px] text-mist-500">{hint}</span>
+                  </span>
+                  <span className="shrink-0 font-mono text-[10px] text-mist-600 transition-colors group-hover:text-mist-300">
+                    {to}
+                  </span>
+                </Link>
+              </li>
+            ))}
+          </ul>
+        </Panel>
       </div>
-    </PageWrapper>
+    </PageContainer>
   );
 }

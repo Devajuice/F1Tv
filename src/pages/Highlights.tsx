@@ -1,244 +1,255 @@
-import { useState, useMemo, useEffect } from 'react';
-import { Play, Calendar, Eye, Film, Flag, Timer, Zap, ArrowUpDown } from 'lucide-react';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
-import { fetchAllHighlights, type HighlightType, type YoutubeVideo } from '../api/youtube';
+import { useMemo, useState } from 'react';
+import { ExternalLink, Eye, Play, Zap, Flag, Timer } from 'lucide-react';
+import {
+  fetchAllHighlights,
+  type HighlightType,
+  type YoutubeVideo,
+} from '../api/youtube';
+import { formatCompact, timeAgo } from '../lib/format';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { Tabs } from '../components/ui/Tabs';
+import { ArticlePlaceholder } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { cn } from '../lib/cn';
 
-type Tab = HighlightType;
-type SortBy = 'recent' | 'views';
-type HighlightVideo = YoutubeVideo;
-
-const RACE_HIGHLIGHTS: HighlightVideo[] = [
-  { id: 'rnjmSOUYVp8', title: 'Race Highlights | 2026 British Grand Prix', thumbnail: 'https://i.ytimg.com/vi/rnjmSOUYVp8/hqdefault.jpg', published: '2026-07-05', views: '5.4M' },
-  { id: 'usP9O0zFVaA', title: 'Race Highlights | 2026 Austrian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/usP9O0zFVaA/hqdefault.jpg', published: '2026-06-28', views: '5.5M' },
-  { id: 'Ey8j_BlLvFM', title: 'Race Highlights | 2026 Barcelona-Catalunya Grand Prix', thumbnail: 'https://i.ytimg.com/vi/Ey8j_BlLvFM/hqdefault.jpg', published: '2026-06-14', views: '7.6M' },
-  { id: 'ipOT9ruRobc', title: 'Race Highlights | 2026 Monaco Grand Prix', thumbnail: 'https://i.ytimg.com/vi/ipOT9ruRobc/hqdefault.jpg', published: '2026-06-07', views: '7.4M' },
-  { id: 'QrRh2vOJQbw', title: 'Race Highlights | 2026 Canadian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/QrRh2vOJQbw/hqdefault.jpg', published: '2026-05-24', views: '7.9M' },
-  { id: '5gYys4GL7S0', title: 'Race Highlights | 2026 Miami Grand Prix', thumbnail: 'https://i.ytimg.com/vi/5gYys4GL7S0/hqdefault.jpg', published: '2026-05-03', views: '7.9M' },
-  { id: 'oAtYfF0_4-I', title: 'Race Highlights | 2026 Japanese Grand Prix', thumbnail: 'https://i.ytimg.com/vi/oAtYfF0_4-I/hqdefault.jpg', published: '2026-03-29', views: '9.2M' },
-  { id: 't8HpVlineX4', title: 'Race Highlights | 2026 Chinese Grand Prix', thumbnail: 'https://i.ytimg.com/vi/t8HpVlineX4/hqdefault.jpg', published: '2026-03-15', views: '9.4M' },
-  { id: 'lL_d84cN1UY', title: 'Race Highlights | 2026 Australian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/lL_d84cN1UY/hqdefault.jpg', published: '2026-03-08', views: '12.0M' },
+const TABS: Array<{ value: HighlightType; label: string; icon: typeof Zap }> = [
+  { value: 'race', label: 'Race', icon: Zap },
+  { value: 'sprint', label: 'Sprint', icon: Timer },
+  { value: 'qualifying', label: 'Qualifying', icon: Flag },
 ];
 
-const SPRINT_HIGHLIGHTS: HighlightVideo[] = [
-  { id: 'v52utVGuAxQ', title: 'Sprint Highlights | 2026 British Grand Prix', thumbnail: 'https://i.ytimg.com/vi/v52utVGuAxQ/hqdefault.jpg', published: '2026-07-04', views: '3.9M' },
-  { id: 'l3aB-W19bnc', title: 'Sprint Highlights | 2026 Canadian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/l3aB-W19bnc/hqdefault.jpg', published: '2026-05-23', views: '4.6M' },
-  { id: '0XlphgCNbwQ', title: 'Sprint Highlights | 2026 Miami Grand Prix', thumbnail: 'https://i.ytimg.com/vi/0XlphgCNbwQ/hqdefault.jpg', published: '2026-05-02', views: '4.3M' },
-  { id: 'ynRZQ9EBfRI', title: 'Sprint Highlights | 2026 Chinese Grand Prix', thumbnail: 'https://i.ytimg.com/vi/ynRZQ9EBfRI/hqdefault.jpg', published: '2026-03-14', views: '6.4M' },
-];
-
-const QUALIFYING_HIGHLIGHTS: HighlightVideo[] = [
-  { id: 'CmzXqYzymzg', title: 'Qualifying Highlights | 2026 Belgian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/CmzXqYzymzg/hqdefault.jpg', published: '2026-07-18', views: '3.5M' },
-  { id: 'rx41vYOBLFE', title: 'Qualifying Highlights | 2026 British Grand Prix', thumbnail: 'https://i.ytimg.com/vi/rx41vYOBLFE/hqdefault.jpg', published: '2026-07-04', views: '3.3M' },
-  { id: 'sZb7_vNeA9o', title: 'Qualifying Highlights | 2026 Austrian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/sZb7_vNeA9o/hqdefault.jpg', published: '2026-06-27', views: '4.0M' },
-  { id: 'Q2fMM4H9bWY', title: 'Qualifying Highlights | 2026 Barcelona-Catalunya Grand Prix', thumbnail: 'https://i.ytimg.com/vi/Q2fMM4H9bWY/hqdefault.jpg', published: '2026-06-13', views: '3.9M' },
-  { id: 'xmk0j-HdgwY', title: 'Qualifying Highlights | 2026 Monaco Grand Prix', thumbnail: 'https://i.ytimg.com/vi/xmk0j-HdgwY/hqdefault.jpg', published: '2026-06-06', views: '4.3M' },
-  { id: 'rjLDgDc0td4', title: 'Qualifying Highlights | 2026 Canadian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/rjLDgDc0td4/hqdefault.jpg', published: '2026-05-23', views: '3.0M' },
-  { id: '83GJM1S0FnE', title: 'Qualifying Highlights | 2026 Miami Grand Prix', thumbnail: 'https://i.ytimg.com/vi/83GJM1S0FnE/hqdefault.jpg', published: '2026-05-02', views: '3.5M' },
-  { id: 'oZH_7pYJPTE', title: 'Qualifying Highlights | 2026 Japanese Grand Prix', thumbnail: 'https://i.ytimg.com/vi/oZH_7pYJPTE/hqdefault.jpg', published: '2026-03-28', views: '4.5M' },
-  { id: 'QztBs3IZBHk', title: 'Qualifying Highlights | 2026 Australian Grand Prix', thumbnail: 'https://i.ytimg.com/vi/QztBs3IZBHk/hqdefault.jpg', published: '2026-03-17', views: '5.1M' },
-];
-
-function parseViews(v: string): number {
-  const num = parseFloat(v);
-  if (v.endsWith('M')) return num * 1_000_000;
-  if (v.endsWith('K')) return num * 1_000;
-  return num;
-}
-
-const TABS: { key: Tab; label: string; icon: React.ReactNode; accent: string; accentBg: string }[] = [
-  { key: 'race', label: 'Race', icon: <Flag size={14} />, accent: '#e10600', accentBg: 'rgba(225,6,0,0.15)' },
-  { key: 'sprint', label: 'Sprint', icon: <Zap size={14} />, accent: '#facc15', accentBg: 'rgba(250,204,21,0.15)' },
-  { key: 'qualifying', label: 'Qualifying', icon: <Timer size={14} />, accent: '#60a5fa', accentBg: 'rgba(96,165,250,0.15)' },
-];
-
-const PAGE_SIZE = 6;
+/** Videos per page. */
+const PAGE = 6;
 
 export default function Highlights() {
-  const [tab, setTab] = useState<Tab>('race');
-  const [sortBy, setSortBy] = useState<SortBy>('recent');
-  const [visibleCount, setVisibleCount] = useState(PAGE_SIZE);
-  const [liveData, setLiveData] = useState<Record<Tab, YoutubeVideo[]>>({
-    race: RACE_HIGHLIGHTS,
-    sprint: SPRINT_HIGHLIGHTS,
-    qualifying: QUALIFYING_HIGHLIGHTS,
-  });
+  useDocumentTitle('Highlights');
+  const [tab, setTab] = useState<HighlightType>('race');
+  const [limit, setLimit] = useState(PAGE);
 
-  useEffect(() => {
-    fetchAllHighlights()
-      .then((data) => {
-        setLiveData((prev) => ({
-          race: data.race.length > 0 ? data.race : prev.race,
-          sprint: data.sprint.length > 0 ? data.sprint : prev.sprint,
-          qualifying: data.qualifying.length > 0 ? data.qualifying : prev.qualifying,
-        }));
-      })
-      .catch(() => {});
-  }, []);
+  const { data, loading, error, refresh, refreshing, lastFetchedAt } =
+    useAsync(() => fetchAllHighlights(), [], { intervalMs: 30 * 60_000 });
 
-  const currentTab = TABS.find((t) => t.key === tab)!;
-  const currentData = liveData[tab];
+  const videos = useMemo(() => data?.[tab] ?? [], [data, tab]);
+  const shown = videos.slice(0, limit);
 
-  const sortedVideos = useMemo(() => {
-    const videos = [...currentData];
-    if (sortBy === 'views') {
-      videos.sort((a, b) => parseViews(b.views) - parseViews(a.views));
-    } else {
-      videos.sort((a, b) => new Date(b.published).getTime() - new Date(a.published).getTime());
-    }
-    return videos;
-  }, [currentData, sortBy]);
+  const counts = useMemo(
+    () => ({
+      race: data?.race.length ?? 0,
+      sprint: data?.sprint.length ?? 0,
+      qualifying: data?.qualifying.length ?? 0,
+    }),
+    [data],
+  );
 
-  const visibleVideos = sortedVideos.slice(0, visibleCount);
-  const hasMore = visibleCount < sortedVideos.length;
+  const total = Object.values(counts).reduce((a, b) => a + b, 0);
+  const top = shown[0];
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 1100, margin: '0 auto', padding: '0 16px' }}>
-        <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 6 }} className="fade-in-up">
-          <Film size={24} color="#e10600" />
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', margin: 0 }}>Highlights</h1>
-        </div>
-        <p style={{ fontSize: 13, color: '#737373', marginBottom: 20 }} className="fade-in-up">Official highlights from the FORMULA 1 YouTube channel</p>
-
-        {/* Tabs */}
-        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.03)', marginBottom: 16, maxWidth: 420 }} className="fade-in-up">
-          {TABS.map((t) => {
-            const active = tab === t.key;
-            return (
-              <button
-                key={t.key}
-                onClick={() => { setTab(t.key); setVisibleCount(PAGE_SIZE); }}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 13, fontWeight: 600, cursor: 'pointer',
-                  border: 'none', transition: 'all 0.2s cubic-bezier(0.4,0,0.2,1)', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  fontFamily: 'inherit',
-                  background: active ? t.accentBg : 'transparent',
-                  color: active ? t.accent : '#737373',
-                  boxShadow: active ? `inset 0 -2px 0 ${t.accent}` : 'none',
-                }}
-              >
-                {t.icon} {t.label}
-              </button>
-            );
-          })}
-        </div>
-
-        {/* Sort controls */}
-        <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }} className="fade-in-up">
-          <span style={{ fontSize: 12, color: '#737373' }}>{sortedVideos.length} videos</span>
-          <div style={{ display: 'flex', gap: 4, padding: 3, borderRadius: 8, background: 'rgba(255,255,255,0.03)' }}>
-            {([
-              { key: 'recent' as SortBy, label: 'Recent' },
-              { key: 'views' as SortBy, label: 'Most Viewed' },
-            ]).map((s) => (
-              <button
-                key={s.key}
-                onClick={() => setSortBy(s.key)}
-                style={{
-                  padding: '5px 10px', borderRadius: 6, fontSize: 11, fontWeight: 600, cursor: 'pointer',
-                  border: 'none', transition: 'all 0.15s', fontFamily: 'inherit',
-                  background: sortBy === s.key ? 'rgba(255,255,255,0.06)' : 'transparent',
-                  color: sortBy === s.key ? '#d4d4d4' : '#737373',
-                }}
-              >
-                <span style={{ display: 'flex', alignItems: 'center', gap: 4 }}>
-                  {s.key === 'views' && <ArrowUpDown size={10} />}
-                  {s.label}
-                </span>
-              </button>
-            ))}
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow={total > 0 ? `${total} videos` : 'Official channel'}
+        title="Highlights"
+        description="Race, Sprint and qualifying highlights from the official Formula 1 YouTube channel."
+        actions={
+          <RefreshHint
+            at={lastFetchedAt}
+            onRefresh={refresh}
+            busy={refreshing}
+          />
+        }
+      >
+        {total > 0 && (
+          <div className="mt-6">
+            <Tabs
+              items={TABS.map((t) => ({
+                value: t.value,
+                label: t.label,
+                hint: counts[t.value] ? String(counts[t.value]) : undefined,
+              }))}
+              value={tab}
+              onChange={(v) => {
+                setTab(v);
+                setLimit(PAGE);
+              }}
+              accent={(v) =>
+                v === 'sprint'
+                  ? 'var(--color-purple-fp)'
+                  : v === 'qualifying'
+                    ? 'var(--color-sodium)'
+                    : 'var(--color-f1-red)'
+              }
+              aria-label="Highlight type"
+            />
           </div>
-        </div>
+        )}
+      </PageHeader>
 
-        {/* Grid */}
-        <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 16 }}>
-          {visibleVideos.map((video) => (
-            <a
-              key={video.id}
-              href={`https://www.youtube.com/watch?v=${video.id}`}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="glass glass-hover"
-              style={{ borderRadius: 12, overflow: 'hidden', cursor: 'pointer', textDecoration: 'none', display: 'block' }}
-            >
-              <div style={{ position: 'relative', paddingBottom: '56.25%' }}>
-                <img
-                  src={video.thumbnail}
-                  alt={video.title}
-                  style={{ position: 'absolute', inset: 0, width: '100%', height: '100%', objectFit: 'cover' }}
-                  loading="lazy"
-                />
-                <div style={{
-                  position: 'absolute', inset: 0,
-                  background: 'linear-gradient(to top, rgba(0,0,0,0.8) 0%, transparent 50%)',
-                }} />
-                {/* Corner type tag */}
-                <div style={{
-                  position: 'absolute', top: 8, left: 8,
-                  background: `${currentTab.accent}cc`, borderRadius: 4,
-                  padding: '2px 8px', fontSize: 10, fontWeight: 700, color: '#fff',
-                  textTransform: 'uppercase', letterSpacing: '0.05em',
-                  backdropFilter: 'blur(4px)',
-                }}>
-                  {currentTab.label}
-                </div>
-                <div style={{
-                  position: 'absolute', top: '50%', left: '50%',
-                  transform: 'translate(-50%, -50%)',
-                  width: 56, height: 56, borderRadius: '50%',
-                  background: `${currentTab.accent}e6`, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  boxShadow: `0 0 30px ${currentTab.accent}66`,
-                  transition: 'transform 0.3s cubic-bezier(0.4,0,0.2,1), box-shadow 0.3s',
-                }}>
-                  <Play size={22} color="#fff" fill="#fff" style={{ marginLeft: 2 }} />
-                </div>
-                <div style={{ position: 'absolute', bottom: 8, right: 8, background: 'rgba(0,0,0,0.8)', borderRadius: 4, padding: '2px 8px', fontSize: 11, color: '#fff', fontWeight: 600, display: 'flex', alignItems: 'center', gap: 4 }}>
-                  <Eye size={11} /> {video.views}
-                </div>
-              </div>
-              <div style={{ padding: '12px 14px' }}>
-                <h3 style={{ fontSize: 14, fontWeight: 600, color: '#fff', lineHeight: 1.4, margin: 0 }}>{video.title}</h3>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 4, marginTop: 6, fontSize: 12, color: '#737373' }}>
-                  <Calendar size={11} /> {video.published}
-                </div>
-              </div>
-            </a>
+      {error ? (
+        <Panel className="mt-4">
+          <ErrorState
+            title="Couldn't load highlights"
+            message={error.message}
+            onRetry={refresh}
+          />
+        </Panel>
+      ) : loading ? (
+        <div className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <div key={i} className="space-y-2.5">
+              <Skeleton className="aspect-video w-full" />
+              <Skeleton className="h-3.5 w-4/5" />
+              <Skeleton className="h-3 w-1/3" />
+            </div>
           ))}
         </div>
+      ) : videos.length === 0 ? (
+        <Panel className="mt-4">
+          <EmptyState
+            icon={<Play size={18} />}
+            title={`No ${TABS.find((t) => t.value === tab)?.label.toLowerCase()} highlights yet`}
+            description="Highlight videos are published after each session. Check back shortly, or watch the live stream."
+            action={
+              <a
+                href={CHANNEL_URL}
+                target="_blank"
+                rel="noreferrer noopener"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xs border border-white/12 bg-white/5 px-3 text-[10px] font-semibold tracking-[0.08em] text-mist-100 uppercase transition-colors hover:border-white/25 hover:bg-white/10"
+              >
+                Open the F1 YouTube channel
+                <ExternalLink size={11} />
+              </a>
+            }
+          />
+        </Panel>
+      ) : (
+        <>
+          {/* ---- Feature ---- */}
+          {top && limit >= PAGE && <Feature video={top} />}
 
-        {/* Load more */}
-        {hasMore && (
-          <div style={{ textAlign: 'center', marginTop: 24, marginBottom: 24 }} className="fade-in-up">
-            <button
-              onClick={() => setVisibleCount((c) => c + PAGE_SIZE)}
-              className="glass"
-              style={{
-                padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                color: '#d4d4d4', cursor: 'pointer', fontFamily: 'inherit',
-                background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-                transition: 'all 0.2s',
-              }}
-              onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-              onMouseLeave={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.04)'; }}
-            >
-              Load More ({sortedVideos.length - visibleCount} remaining)
-            </button>
-          </div>
+          {/* ---- Grid ---- */}
+          <ul className="mt-4 grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+            {shown.map((video) => (
+              <li key={video.id}>
+                <Card video={video} />
+              </li>
+            ))}
+          </ul>
+
+          {limit < videos.length && (
+            <div className="mt-6 flex justify-center">
+              <Button
+                variant="secondary"
+                onClick={() => setLimit((l) => l + PAGE)}
+              >
+                Load more ({videos.length - limit} left)
+              </Button>
+            </div>
+          )}
+        </>
+      )}
+    </PageContainer>
+  );
+}
+
+const CHANNEL_URL = 'https://www.youtube.com/@formula1';
+
+function Feature({ video }: { video: YoutubeVideo }) {
+  return (
+    <a
+      href={`https://www.youtube.com/watch?v=${video.id}`}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="group relative block overflow-hidden rounded-md border border-white/10 bg-ink-900"
+    >
+      <div className="relative aspect-[21/9] w-full overflow-hidden">
+        {video.thumbnail ? (
+          <img
+            src={video.thumbnail}
+            alt=""
+            loading="lazy"
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+          />
+        ) : (
+          <ArticlePlaceholder className="size-full" />
+        )}
+        <span
+          aria-hidden
+          className="absolute inset-0 bg-linear-to-t from-ink-950 via-ink-950/35 to-transparent"
+        />
+        <span
+          aria-hidden
+          className="absolute inset-y-0 left-0 w-1 bg-f1-red"
+        />
+      </div>
+
+      <div className="relative -mt-10 px-5 pb-5 sm:px-6 sm:pb-6">
+        <p className="eyebrow mb-2 flex items-center gap-2">
+          <span className="accent-bar inline-block h-3 w-1.5" />
+          Latest · {timeAgo(video.published)}
+        </p>
+        <h2 className="line-clamp-2 max-w-2xl font-display text-lg leading-tight font-extrabold tracking-[-0.02em] text-mist-50 sm:text-xl">
+          {video.title}
+        </h2>
+        <p className="num mt-2 font-mono text-[10.5px] text-mist-500">
+          {formatCompact(video.views)} views
+        </p>
+      </div>
+    </a>
+  );
+}
+
+function Card({ video }: { video: YoutubeVideo }) {
+  return (
+    <a
+      href={`https://www.youtube.com/watch?v=${video.id}`}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="group block"
+    >
+      <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-white/8 bg-ink-900">
+        {video.thumbnail ? (
+          <img
+            src={video.thumbnail}
+            alt=""
+            loading="lazy"
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <ArticlePlaceholder className="size-full" />
+        )}
+        <span
+          aria-hidden
+          className="absolute inset-0 bg-ink-950/0 transition-colors duration-300 group-hover:bg-ink-950/35"
+        />
+        <span
+          className={cn(
+            'absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100',
+          )}
+        >
+          <span className="flex size-11 items-center justify-center rounded-full bg-f1-red text-white shadow-lg shadow-black/50">
+            <Play size={16} className="ml-0.5" fill="currentColor" />
+          </span>
+        </span>
+        {video.views && (
+          <span className="num absolute right-2 bottom-2 rounded-xs bg-ink-950/85 px-1.5 py-0.5 font-mono text-[9.5px] text-mist-200 backdrop-blur-sm">
+            <Eye size={9} className="mr-1 inline" />
+            {formatCompact(video.views)}
+          </span>
         )}
       </div>
 
-      <div style={{ marginTop: 48 }}>
-        <Footer>
-          Highlights from the official FORMULA 1 YouTube channel &mdash; Made by{' '}
-          <a href="https://github.com/Devajuice" target="_blank" rel="noopener noreferrer" style={{ color: '#e10600', textDecoration: 'none' }}>
-            Devajuice
-          </a>
-        </Footer>
-      </div>
-    </PageWrapper>
+      <p className="mt-2.5 line-clamp-2 text-[12.5px] leading-snug font-semibold text-mist-100 transition-colors group-hover:text-mist-50">
+        {video.title}
+      </p>
+      <p className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] text-mist-500">
+        {timeAgo(video.published)}
+        <ExternalLink size={9} className="opacity-0 transition-opacity group-hover:opacity-100" />
+      </p>
+    </a>
   );
 }

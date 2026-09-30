@@ -1,194 +1,263 @@
-import { useState, useEffect } from 'react';
-import { Newspaper, ExternalLink, RefreshCw } from 'lucide-react';
+import { useMemo, useState } from 'react';
+import { ArrowUpRight, Clock, Newspaper } from 'lucide-react';
 import { fetchNews, type NewsArticle } from '../api/news';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { timeAgo } from '../lib/format';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { ArticlePlaceholder } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { cn } from '../lib/cn';
 
-function timeAgo(dateStr: string): string {
-  const now = Date.now();
-  const then = new Date(dateStr).getTime();
-  const diffMs = now - then;
-  const mins = Math.floor(diffMs / 60000);
-  if (mins < 1) return 'just now';
-  if (mins < 60) return `${mins}m ago`;
-  const hrs = Math.floor(mins / 60);
-  if (hrs < 24) return `${hrs}h ago`;
-  const days = Math.floor(hrs / 24);
-  if (days === 1) return 'yesterday';
-  if (days < 7) return `${days}d ago`;
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric' });
-}
-
-const SOURCE_COLORS: Record<string, string> = {
-  'Motorsport.com': '#e10600',
-  'Autosport': '#0066cc',
-  'The Race': '#ff4444',
-};
+const ALL = 'all';
 
 export default function News() {
-  const [articles, setArticles] = useState<NewsArticle[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [loadingMore, setLoadingMore] = useState(false);
-  const [visibleCount, setVisibleCount] = useState(12);
+  useDocumentTitle('News');
+  const [source, setSource] = useState<string>(ALL);
 
-  const load = (isRefresh = false) => {
-    if (isRefresh) setLoadingMore(true);
-    else setLoading(true);
-    fetchNews()
-      .then(setArticles)
-      .catch(() => {})
-      .finally(() => { setLoading(false); setLoadingMore(false); });
-  };
+  const { data, loading, error, refresh, refreshing, lastFetchedAt } =
+    useAsync<NewsArticle[]>(() => fetchNews(), [], { intervalMs: 10 * 60_000 });
 
-  useEffect(() => { load(); }, []);
+  const articles = useMemo(() => data ?? [], [data]);
 
-  const visible = articles.slice(0, visibleCount);
-  const hasMore = visibleCount < articles.length;
+  const sources = useMemo(() => {
+    const unique = new Map<string, string>();
+    for (const a of articles) unique.set(a.source, a.sourceUrl);
+    return [...unique.entries()];
+  }, [articles]);
+
+  const visible = useMemo(
+    () => (source === ALL ? articles : articles.filter((a) => a.source === source)),
+    [articles, source],
+  );
+
+  const [lead, ...rest] = visible;
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        <div className="fade-in-up" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 20 }}>
-          <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', display: 'flex', alignItems: 'center', gap: 8, margin: 0 }}>
-            <Newspaper size={22} color="#e10600" /> F1 News
-          </h1>
-          <button
-            onClick={() => load(true)}
-            disabled={loadingMore}
-            style={{
-              display: 'flex', alignItems: 'center', gap: 5, padding: '6px 12px',
-              borderRadius: 8, fontSize: 12, fontWeight: 600, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.04)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#a3a3a3', fontFamily: 'inherit', transition: 'all 0.15s',
-            }}
-            onMouseEnter={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)'; }}
-            onMouseLeave={(e) => { e.currentTarget.style.borderColor = 'rgba(255,255,255,0.08)'; }}
-          >
-            <RefreshCw size={12} className={loadingMore ? 'spin' : ''} /> Refresh
-          </button>
-        </div>
-
-        {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-            {Array.from({ length: 6 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 14, overflow: 'hidden' }}>
-                <div className="skeleton" style={{ width: '100%', height: 160 }} />
-                <div style={{ padding: 14 }}>
-                  <div className="skeleton skeleton-text" style={{ width: '70%', height: 14, marginBottom: 8 }} />
-                  <div className="skeleton skeleton-text" style={{ width: '100%', height: 10, marginBottom: 4 }} />
-                  <div className="skeleton skeleton-text" style={{ width: '90%', height: 10 }} />
-                </div>
-              </div>
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow={
+          articles.length
+            ? `${articles.length} stories from ${sources.length} sources`
+            : 'Autosport · The Race · Motorsport.com'
+        }
+        title="News"
+        description="The latest Formula 1 headlines, aggregated from the specialist newsrooms and refreshed every ten minutes."
+        actions={
+          <RefreshHint
+            at={lastFetchedAt}
+            onRefresh={refresh}
+            busy={refreshing}
+          />
+        }
+      >
+        {sources.length > 1 && (
+          <div className="mt-6 flex flex-wrap items-center gap-2">
+            <SourceChip
+              active={source === ALL}
+              onClick={() => setSource(ALL)}
+              label="All sources"
+            />
+            {sources.map(([name, url]) => (
+              <SourceChip
+                key={name}
+                active={source === name}
+                onClick={() => setSource(name)}
+                label={name}
+                href={url}
+              />
             ))}
           </div>
-        ) : articles.length === 0 ? (
-          <div className="glass" style={{ borderRadius: 14, padding: 48, textAlign: 'center', color: '#737373' }}>
-            No news articles available
+        )}
+      </PageHeader>
+
+      {error ? (
+        <Panel className="mt-4">
+          <ErrorState
+            title="Couldn't load the news feed"
+            message={error.message}
+            onRetry={refresh}
+          />
+        </Panel>
+      ) : loading ? (
+        <div className="mt-4 space-y-3">
+          <Skeleton className="h-52 w-full" />
+          <div className="grid gap-3 md:grid-cols-2">
+            {Array.from({ length: 4 }, (_, i) => (
+              <Skeleton key={i} className="h-32 w-full" />
+            ))}
           </div>
-        ) : (
-          <>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(280px, 1fr))', gap: 14 }}>
-              {visible.map((article, i) => (
-                <a
-                  key={`${article.source}-${article.link}`}
-                  href={article.link}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="glass glass-hover stagger-in"
-                  style={{
-                    borderRadius: 14, overflow: 'hidden', textDecoration: 'none',
-                    display: 'flex', flexDirection: 'column', animationDelay: `${Math.min(i * 0.03, 0.3)}s`,
-                  }}
-                >
-                  {/* Thumbnail */}
-                  <div style={{
-                    width: '100%', height: 160, background: 'rgba(255,255,255,0.03)',
-                    overflow: 'hidden', position: 'relative',
-                  }}>
-                    {article.thumbnail ? (
-                      <img
-                        src={article.thumbnail}
-                        alt={article.title}
-                        style={{ width: '100%', height: '100%', objectFit: 'cover' }}
-                        loading="lazy"
-                        onError={(e) => { (e.target as HTMLImageElement).style.display = 'none'; }}
-                      />
-                    ) : (
-                      <div style={{
-                        width: '100%', height: '100%', display: 'flex',
-                        alignItems: 'center', justifyContent: 'center',
-                      }}>
-                        <Newspaper size={32} color="#333" />
-                      </div>
-                    )}
-                    {/* Source badge */}
-                    <span style={{
-                      position: 'absolute', top: 8, left: 8,
-                      fontSize: 10, fontWeight: 700, color: '#fff',
-                      background: SOURCE_COLORS[article.source] ?? '#555',
-                      padding: '3px 8px', borderRadius: 4,
-                    }}>
-                      {article.source}
-                    </span>
-                  </div>
+        </div>
+      ) : visible.length === 0 ? (
+        <Panel className="mt-4">
+          <EmptyState
+            icon={<Newspaper size={18} />}
+            title="No stories right now"
+            description="The feeds are empty or unreachable at the moment. Try again shortly."
+            action={
+              <Button variant="secondary" size="sm" onClick={refresh}>
+                Reload feeds
+              </Button>
+            }
+          />
+        </Panel>
+      ) : (
+        <>
+          {lead && <Lead article={lead} />}
 
-                  {/* Content */}
-                  <div style={{ padding: 14, flex: 1, display: 'flex', flexDirection: 'column' }}>
-                    <h3 style={{
-                      fontSize: 14, fontWeight: 700, color: '#fff',
-                      margin: '0 0 8px', lineHeight: 1.35,
-                      display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const,
-                      overflow: 'hidden',
-                    }}>
-                      {article.title}
-                    </h3>
-                    <p style={{
-                      fontSize: 12, color: '#737373', margin: 0, lineHeight: 1.5,
-                      flex: 1,
-                      display: '-webkit-box', WebkitLineClamp: 3, WebkitBoxOrient: 'vertical' as const,
-                      overflow: 'hidden',
-                    }}>
-                      {article.description}
-                    </p>
-                    <div style={{
-                      display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-                      marginTop: 10, paddingTop: 10,
-                      borderTop: '1px solid rgba(255,255,255,0.04)',
-                    }}>
-                      <span style={{ fontSize: 11, color: '#525252' }}>{timeAgo(article.pubDate)}</span>
-                      <ExternalLink size={11} color="#525252" />
-                    </div>
-                  </div>
-                </a>
+          {rest.length > 0 && (
+            <ul className="mt-3 grid gap-3 md:grid-cols-2">
+              {rest.map((article) => (
+                <li key={article.link}>
+                  <Row article={article} />
+                </li>
               ))}
-            </div>
+            </ul>
+          )}
+        </>
+      )}
+    </PageContainer>
+  );
+}
 
-            {hasMore && (
-              <div style={{ textAlign: 'center', marginTop: 20 }}>
-                <button
-                  onClick={() => setVisibleCount((v) => v + 12)}
-                  className="glass"
-                  style={{
-                    padding: '10px 24px', borderRadius: 10, fontSize: 13, fontWeight: 600,
-                    cursor: 'pointer', color: '#d4d4d4', border: 'none', fontFamily: 'inherit',
-                    transition: 'all 0.15s',
-                  }}
-                  onMouseEnter={(e) => { e.currentTarget.style.background = 'rgba(255,255,255,0.08)'; }}
-                  onMouseLeave={(e) => { e.currentTarget.style.background = ''; }}
-                >
-                  Load More ({articles.length - visibleCount} remaining)
-                </button>
-              </div>
-            )}
-          </>
+function SourceChip({
+  active,
+  onClick,
+  label,
+  href,
+}: {
+  active: boolean;
+  onClick: () => void;
+  label: string;
+  href?: string;
+}) {
+  const className = cn(
+    'rounded-xs border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors',
+    active
+      ? 'border-f1-red/45 bg-f1-red/12 text-mist-50'
+      : 'border-white/10 bg-white/[0.03] text-mist-400 hover:border-white/20 hover:text-mist-200',
+  );
+
+  if (href) {
+    return (
+      <a
+        href={href}
+        target="_blank"
+        rel="noreferrer noopener"
+        className={className}
+        title={`Open ${label} ↗`}
+      >
+        {label}
+      </a>
+    );
+  }
+  return (
+    <button type="button" onClick={onClick} aria-pressed={active} className={className}>
+      {label}
+    </button>
+  );
+}
+
+function Lead({ article }: { article: NewsArticle }) {
+  return (
+    <a
+      href={article.link}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="group relative block overflow-hidden rounded-md border border-white/10 bg-ink-900"
+    >
+      <div className="grid md:grid-cols-[1.15fr_1fr]">
+        <div className="relative aspect-[16/10] overflow-hidden md:aspect-auto md:min-h-[300px]">
+          {article.thumbnail ? (
+            <img
+              src={article.thumbnail}
+              alt=""
+              loading="lazy"
+              className="size-full object-cover transition-transform duration-500 group-hover:scale-[1.03]"
+            />
+          ) : (
+            <ArticlePlaceholder className="size-full" />
+          )}
+          <span
+            aria-hidden
+            className="absolute inset-0 bg-linear-to-t from-ink-950/70 to-transparent md:bg-linear-to-r"
+          />
+        </div>
+
+        <div className="relative flex flex-col justify-center p-5 sm:p-7">
+          <span
+            aria-hidden
+            className="accent-bar absolute top-6 left-0 h-8 w-1 sm:top-8"
+          />
+          <p className="eyebrow mb-3 flex items-center gap-2">
+            {article.source}
+            <span className="text-mist-600">·</span>
+            <span className="num font-mono">{timeAgo(article.pubDate)}</span>
+          </p>
+          <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl lg:text-[26px]">
+            {article.title}
+          </h2>
+          {article.description && (
+            <p className="mt-3 line-clamp-3 text-[13px] leading-relaxed text-mist-400">
+              {article.description}
+            </p>
+          )}
+          <p className="mt-4 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-mist-500 uppercase group-hover:text-f1-red-bright">
+            Read story
+            <ArrowUpRight
+              size={12}
+              className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
+            />
+          </p>
+        </div>
+      </div>
+    </a>
+  );
+}
+
+function Row({ article }: { article: NewsArticle }) {
+  return (
+    <a
+      href={article.link}
+      target="_blank"
+      rel="noreferrer noopener"
+      className="group flex h-full gap-3.5 rounded-sm border border-white/8 bg-white/[0.02] p-3 transition-colors hover:border-white/16 hover:bg-white/[0.045]"
+    >
+      <div className="relative size-20 shrink-0 overflow-hidden rounded-xs bg-ink-900 sm:size-24">
+        {article.thumbnail ? (
+          <img
+            src={article.thumbnail}
+            alt=""
+            loading="lazy"
+            className="size-full object-cover transition-transform duration-500 group-hover:scale-105"
+          />
+        ) : (
+          <ArticlePlaceholder className="size-full" />
         )}
       </div>
 
-      <style>{`@keyframes spin { to { transform: rotate(360deg) } } .spin { animation: spin 1s linear infinite; }`}</style>
-      <Footer />
-    </PageWrapper>
+      <div className="flex min-w-0 flex-1 flex-col justify-center">
+        <p className="eyebrow mb-1.5 flex items-center gap-1.5">
+          {article.source}
+          <span className="inline-flex items-center gap-1 normal-case">
+            <Clock size={9} />
+            <span className="num font-mono normal-case">
+              {timeAgo(article.pubDate)}
+            </span>
+          </span>
+        </p>
+        <h3 className="line-clamp-2 text-[12.5px] leading-snug font-semibold text-mist-100 transition-colors group-hover:text-mist-50">
+          {article.title}
+        </h3>
+        {article.description && (
+          <p className="mt-1.5 line-clamp-2 text-[11.5px] leading-relaxed text-mist-500">
+            {article.description}
+          </p>
+        )}
+      </div>
+    </a>
   );
 }

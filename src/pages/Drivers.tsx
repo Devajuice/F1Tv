@@ -1,236 +1,243 @@
-import { useState, useEffect, useRef } from 'react';
-import { Users, ChevronRight, Globe, Calendar, X } from 'lucide-react';
-import { getDriverList, getDriverStandings } from '../api/f1Api';
-import type { DriverProfile, DriverStanding } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { useMemo, useState } from 'react';
+import { Cake, Flag, Hash, Search, Trophy, X } from 'lucide-react';
+import { getDriverList, type DriverProfile } from '../api/f1Api';
+import { getTeamColor, getTeamName } from '../data/teams';
+import { getAge, initials, surname } from '../lib/format';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { DriverAvatar, Flag as CountryFlag } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { Skeleton } from '../components/ui/Skeleton';
+import { Button } from '../components/ui/Button';
+import { cn } from '../lib/cn';
 
-const TEAM_COLORS: Record<string, string> = {
-  'Red Bull Racing': '#3671C6', 'Mercedes': '#27F4D2', 'Ferrari': '#E8002D',
-  'McLaren': '#FF8000', 'Aston Martin': '#229971', 'Alpine': '#FF87BC',
-  'Williams': '#64C4FF', 'RB': '#6692FF', 'Kick Sauber': '#52E252',
-  'Haas': '#B6BABD',
-};
-
-function getTeamColor(name: string): string {
-  return TEAM_COLORS[name] ?? '#737373';
-}
-
-function getAge(dob: string): string {
-  if (!dob) return '';
-  const birth = new Date(dob);
-  const now = new Date();
-  let age = now.getFullYear() - birth.getFullYear();
-  if (now < new Date(now.getFullYear(), birth.getMonth(), birth.getDate())) age--;
-  return `${age}`;
-}
-
-const NATIONALITY_FLAGS: Record<string, string> = {
-  British: '\u{1F1EC}\u{1F1E7}', Dutch: '\u{1F1F3}\u{1F1F1}', Australian: '\u{1F1E6}\u{1F1FA}', Monegasque: '\u{1F1F2}\u{1F1E8}',
-  Spanish: '\u{1F1EA}\u{1F1F8}', Canadian: '\u{1F1E8}\u{1F1E6}', French: '\u{1F1EB}\u{1F1F7}', German: '\u{1F1E9}\u{1F1EA}',
-  Japanese: '\u{1F1EF}\u{1F1F5}', Danish: '\u{1F1E9}\u{1F1F0}', Mexican: '\u{1F1F2}\u{1F1FD}', Finnish: '\u{1F1EB}\u{1F1EE}',
-  Thai: '\u{1F1F9}\u{1F1ED}', Chinese: '\u{1F1E8}\u{1F1F3}', Brazilian: '\u{1F1E7}\u{1F1F7}', Argentine: '\u{1F1E6}\u{1F1F7}',
-  Chilean: '\u{1F1E8}\u{1F1F1}', Colombian: '\u{1F1E8}\u{1F1F4}', 'New Zealander': '\u{1F1F3}\u{1F1FF}', Indian: '\u{1F1EE}\u{1F1F3}',
-};
+type SortKey = 'number' | 'name' | 'age';
 
 export default function Drivers() {
-  const [drivers, setDrivers] = useState<DriverProfile[]>([]);
-  const [standings, setStandings] = useState<DriverStanding[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [selectedId, setSelectedId] = useState<string | null>(null);
-  const expandedRef = useRef<HTMLDivElement>(null);
+  useDocumentTitle('Drivers');
+  const [query, setQuery] = useState('');
+  const [sort, setSort] = useState<SortKey>('number');
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
+  const {
+    data: drivers,
+    loading,
+    error,
+    refresh,
+    refreshing,
+    lastFetchedAt,
+  } = useAsync<DriverProfile[]>(() => getDriverList(), []);
 
-    Promise.all([getDriverList(), getDriverStandings()])
-      .then(([d, s]) => { setDrivers(d); setStandings(s); })
-      .catch(() => {})
-      .finally(() => {
-        setLoading(false);
-        interval = setInterval(() => {
-          getDriverStandings().then((s) => setStandings(s)).catch(() => {});
-        }, 180_000);
-      });
+  const visible = useMemo(() => {
+    const needle = query.trim().toLowerCase();
+    const filtered = needle
+      ? (drivers ?? []).filter(
+          (d) =>
+            d.lastName.toLowerCase().includes(needle) ||
+            d.firstName.toLowerCase().includes(needle) ||
+            d.teamName.toLowerCase().includes(needle) ||
+            d.nationality.toLowerCase().includes(needle) ||
+            d.driverNumber.includes(needle),
+        )
+      : (drivers ?? []);
 
-    return () => { if (interval) clearInterval(interval); };
-  }, []);
+    return [...filtered].sort((a, b) => {
+      if (sort === 'name') return a.lastName.localeCompare(b.lastName);
+      if (sort === 'age') {
+        return a.dateOfBirth.localeCompare(b.dateOfBirth);
+      }
+      return (
+        (Number(a.driverNumber) || 99) - (Number(b.driverNumber) || 99)
+      );
+    });
+  }, [drivers, query, sort]);
 
-  useEffect(() => {
-    if (selectedId && expandedRef.current) {
-      expandedRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-    }
-  }, [selectedId]);
-
-  const getStanding = (driverId: string) => standings.find((s) => s.driverId === driverId);
-  const selectedDriver = selectedId ? drivers.find((d) => d.driverId === selectedId) ?? null : null;
+  const hasQuery = query.trim().length > 0;
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow={`${drivers?.length ?? 0} on the grid`}
+        title="Drivers"
+        description="The current entry list, with number, team and age. Search by name, team, nationality or car number."
+        actions={
+          <RefreshHint
+            at={lastFetchedAt}
+            onRefresh={refresh}
+            busy={refreshing}
+          />
+        }
+      >
+        {/* ---- Toolbar ---- */}
+        <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
+          <div className="relative flex-1">
+            <Search
+              size={14}
+              aria-hidden
+              className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mist-500"
+            />
+            <input
+              type="search"
+              value={query}
+              onChange={(e) => setQuery(e.target.value)}
+              placeholder="Search drivers, teams or nationalities"
+              aria-label="Search drivers"
+              className="h-10 w-full rounded-xs border border-white/10 bg-white/[0.03] pr-10 pl-9 text-[12.5px] text-mist-100 placeholder:text-mist-600 focus:border-f1-red/50 focus:ring-1 focus:ring-f1-red/30 focus:outline-none"
+            />
+            {hasQuery && (
+              <button
+                type="button"
+                onClick={() => setQuery('')}
+                aria-label="Clear search"
+                className="absolute top-1/2 right-3 -translate-y-1/2 text-mist-500 transition-colors hover:text-mist-200"
+              >
+                <X size={13} />
+              </button>
+            )}
+          </div>
 
-      <div style={{ maxWidth: 900, margin: '0 auto', padding: '24px 16px' }}>
-        <h1 className="fade-in-up" style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Users size={22} color="#e10600" /> Drivers
-        </h1>
-
-        {/* Expanded Driver Card - rendered at top for visibility */}
-        {selectedDriver && (() => {
-          const color = getTeamColor(selectedDriver.teamName);
-          const standing = getStanding(selectedDriver.driverId);
-          return (
-            <div ref={expandedRef} className="glass-strong scale-in" style={{
-              borderRadius: 14, padding: 20, marginBottom: 16,
-              borderLeft: `3px solid ${color}`,
-            }}>
-              <div style={{ display: 'flex', alignItems: 'flex-start', gap: 16 }}>
-                <div style={{
-                  width: 72, height: 72, borderRadius: '50%', flexShrink: 0,
-                  display: 'flex', alignItems: 'center', justifyContent: 'center',
-                  fontSize: 28, fontWeight: 900, color: '#fff',
-                  background: `linear-gradient(135deg, ${color}30, ${color}10)`,
-                  border: `3px solid ${color}60`,
-                }}>
-                  {selectedDriver.driverNumber || '?'}
-                </div>
-
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: 4 }}>
-                    <h2 style={{ fontSize: 18, fontWeight: 800, color: '#fff', margin: 0 }}>
-                      {selectedDriver.firstName} {selectedDriver.lastName}
-                    </h2>
-                    <button
-                      onClick={() => setSelectedId(null)}
-                      style={{
-                        background: 'rgba(255,255,255,0.05)', border: 'none', borderRadius: 6,
-                        width: 28, height: 28, display: 'flex', alignItems: 'center', justifyContent: 'center',
-                        cursor: 'pointer', color: '#737373',
-                      }}
-                    >
-                      <X size={14} />
-                    </button>
-                  </div>
-
-                  <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginBottom: 14, flexWrap: 'wrap' }}>
-                    <span style={{ display: 'flex', alignItems: 'center', gap: 4, fontSize: 12, color: '#a3a3a3' }}>
-                      <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
-                      {selectedDriver.teamName}
-                    </span>
-                    {standing && (
-                      <span style={{ fontSize: 11, fontWeight: 700, color: '#e10600', background: 'rgba(225,6,0,0.1)', padding: '2px 8px', borderRadius: 4 }}>
-                        P{standing.positionText} &middot; {standing.points} pts &middot; {standing.wins} wins
-                      </span>
-                    )}
-                  </div>
-
-                  <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(130px, 1fr))', gap: 12 }}>
-                    <InfoItem icon={<Globe size={11} />} label="Nationality" value={`${NATIONALITY_FLAGS[selectedDriver.nationality] ?? ''} ${selectedDriver.nationality ?? '-'}`} />
-                    <InfoItem icon={<Calendar size={11} />} label="Date of Birth" value={selectedDriver.dateOfBirth ? new Date(selectedDriver.dateOfBirth).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric' }) : '-'} />
-                    <InfoItem icon={null} label="Age" value={selectedDriver.dateOfBirth ? getAge(selectedDriver.dateOfBirth) : '-'} />
-                  </div>
-
-                  {selectedDriver.url && (
-                    <a
-                      href={selectedDriver.url}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                      style={{
-                        display: 'inline-flex', alignItems: 'center', gap: 4, marginTop: 12,
-                        fontSize: 12, color: '#e10600', textDecoration: 'none', fontWeight: 600,
-                      }}
-                    >
-                      Wikipedia &rarr;
-                    </a>
-                  )}
-                </div>
-              </div>
-            </div>
-          );
-        })()}
-
-        {loading ? (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 14, padding: 16, display: 'flex', gap: 12 }}>
-                <div className="skeleton skeleton-circle" style={{ width: 48, height: 48 }} />
-                <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                  <div className="skeleton skeleton-text" style={{ width: '60%', height: 14 }} />
-                  <div className="skeleton skeleton-text" style={{ width: '40%', height: 10 }} />
-                </div>
-              </div>
+          <div
+            className="flex shrink-0 items-center gap-1 rounded-xs border border-white/10 bg-white/[0.03] p-1"
+            role="group"
+            aria-label="Sort drivers"
+          >
+            {(
+              [
+                { key: 'number', label: 'Number', icon: Hash },
+                { key: 'name', label: 'Name', icon: Flag },
+                { key: 'age', label: 'Age', icon: Cake },
+              ] as const
+            ).map(({ key, label, icon: Icon }) => (
+              <button
+                key={key}
+                type="button"
+                onClick={() => setSort(key)}
+                aria-pressed={sort === key}
+                className={cn(
+                  'inline-flex h-7 items-center gap-1.5 rounded-xs px-2.5 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors',
+                  sort === key
+                    ? 'bg-white/10 text-mist-50'
+                    : 'text-mist-500 hover:text-mist-200',
+                )}
+              >
+                <Icon size={10} />
+                {label}
+              </button>
             ))}
           </div>
-        ) : (
-          <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fill, minmax(260px, 1fr))', gap: 12 }}>
-            {drivers.map((driver, i) => {
-              const standing = getStanding(driver.driverId);
-              const color = getTeamColor(driver.teamName);
-              const flag = NATIONALITY_FLAGS[driver.nationality] ?? '\u{1F3C1}';
-              const isSelected = selectedId === driver.driverId;
-              return (
-                <button
-                  key={driver.driverId}
-                  type="button"
-                  className="glass glass-hover stagger-in"
-                  onClick={() => setSelectedId(isSelected ? null : driver.driverId)}
-                  style={{
-                    borderRadius: 14, padding: 16, cursor: 'pointer', border: isSelected ? `1px solid ${color}60` : '1px solid rgba(255,255,255,0.08)',
-                    display: 'flex', alignItems: 'center', gap: 12, textAlign: 'left' as const,
-                    fontFamily: 'inherit', width: '100%',
-                    background: isSelected ? `${color}10` : 'rgba(255,255,255,0.04)',
-                    animationDelay: `${Math.min(i * 0.03, 0.3)}s`,
-                  }}
-                >
-                  <div style={{
-                    width: 48, height: 48, borderRadius: '50%',
-                    display: 'flex', alignItems: 'center', justifyContent: 'center',
-                    fontSize: 18, fontWeight: 900, color: '#fff', flexShrink: 0,
-                    background: `linear-gradient(135deg, ${color}30, ${color}10)`,
-                    border: `2px solid ${color}40`,
-                  }}>
-                    {driver.driverNumber || '?'}
-                  </div>
+        </div>
+      </PageHeader>
 
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ fontSize: 14, fontWeight: 700, color: '#fff' }}>{driver.lastName}</span>
-                      {standing && (
-                        <span style={{ fontSize: 10, fontWeight: 700, color: '#737373', background: 'rgba(255,255,255,0.05)', padding: '1px 5px', borderRadius: 4 }}>
-                          P{standing.positionText}
-                        </span>
-                      )}
-                    </div>
-                    <div style={{ fontSize: 12, color: '#737373', marginTop: 1 }}>{driver.firstName}</div>
-                    <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 4 }}>
-                      <span style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 11, color: '#525252' }}>
-                        <span style={{ width: 8, height: 8, borderRadius: 2, background: color, display: 'inline-block' }} />
-                        {driver.teamName}
-                      </span>
-                      <span style={{ fontSize: 11, color: '#525252' }}>{flag} {driver.nationality}</span>
-                    </div>
-                  </div>
-
-                  <ChevronRight size={14} color={isSelected ? color : '#525252'} />
-                </button>
-              );
-            })}
-          </div>
-        )}
-      </div>
-
-      <Footer />
-    </PageWrapper>
+      {/* ---- Grid ---- */}
+      {error ? (
+        <Panel className="mt-4">
+          <ErrorState message={error.message} onRetry={refresh} />
+        </Panel>
+      ) : loading ? (
+        <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+          {Array.from({ length: 6 }, (_, i) => (
+            <Panel key={i} className="h-[104px]">
+              <Skeleton className="h-full w-full" />
+            </Panel>
+          ))}
+        </div>
+      ) : visible.length === 0 ? (
+        <Panel className="mt-4">
+          <EmptyState
+            icon={<Search size={18} />}
+            title="No drivers match"
+            description={`Nothing in the entry list matches “${query.trim()}”.`}
+            action={
+              <Button variant="secondary" size="sm" onClick={() => setQuery('')}>
+                Clear search
+              </Button>
+            }
+          />
+        </Panel>
+      ) : (
+        <>
+          <ul className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
+            {visible.map((driver) => (
+              <li key={driver.driverId}>
+                <DriverCard driver={driver} />
+              </li>
+            ))}
+          </ul>
+          {hasQuery && (
+            <p className="mt-4 text-center font-mono text-[10.5px] text-mist-600">
+              {visible.length} of {drivers?.length ?? 0} drivers shown
+            </p>
+          )}
+        </>
+      )}
+    </PageContainer>
   );
 }
 
-function InfoItem({ icon, label, value }: { icon: React.ReactNode; label: string; value: string }) {
+function DriverCard({ driver }: { driver: DriverProfile }) {
+  const color = getTeamColor(driver.teamId);
+  const team = getTeamName(driver.teamId);
+  const age = getAge(driver.dateOfBirth);
+  const fullName = `${driver.firstName} ${surname(driver.lastName)}`;
+
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 3, fontSize: 10, color: '#525252', textTransform: 'uppercase' as const, letterSpacing: '0.05em', marginBottom: 2 }}>
-        {icon} {label}
+    <Panel
+      interactive
+      className="group relative h-full overflow-hidden transition-transform duration-300 hover:-translate-y-0.5"
+    >
+      {/* Livery stripe */}
+      <span
+        aria-hidden
+        className="absolute inset-y-0 left-0 w-0.5 transition-opacity duration-300 group-hover:opacity-100"
+        style={{ backgroundColor: color }}
+      />
+      {/* Team wash — .team-sheen derives its gradient from currentColor. */}
+      <span
+        aria-hidden
+        className="team-sheen pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-[0.09]"
+        style={{ color }}
+      />
+
+      <div className="relative flex items-center gap-4">
+        <DriverAvatar
+          name={fullName}
+          number={driver.driverNumber}
+          color={color}
+          size="lg"
+          className="shrink-0"
+        />
+
+        <div className="min-w-0 flex-1">
+          <p className="truncate font-display text-[15px] leading-tight font-extrabold tracking-[-0.02em] text-mist-50">
+            {fullName}
+          </p>
+          <p className="mt-1 flex items-center gap-1.5 text-[11.5px] text-mist-400">
+            <CountryFlag country={driver.nationality} />
+            {driver.nationality || 'Unknown'}
+          </p>
+          <p
+            className="mt-2 flex items-center gap-1.5 truncate text-[11px] font-semibold"
+            style={{ color }}
+          >
+            <Trophy size={10} className="shrink-0" />
+            {team}
+          </p>
+        </div>
+
+        <div className="shrink-0 text-right">
+          <p className="num font-display text-2xl leading-none font-black text-mist-50">
+            {driver.driverNumber}
+          </p>
+          <p className="num mt-1.5 font-mono text-[9.5px] text-mist-500">
+            {age ? `${age} yrs` : '—'}
+          </p>
+        </div>
       </div>
-      <div style={{ fontSize: 13, fontWeight: 600, color: '#d4d4d4' }}>{value}</div>
-    </div>
+
+      <span className="num pointer-events-none absolute -top-3 -right-1 font-display text-[54px] leading-none font-black text-white/[0.02] select-none">
+        {initials(fullName)}
+      </span>
+    </Panel>
   );
 }

@@ -1,242 +1,365 @@
-import { useState, useEffect } from 'react';
-import { Trophy, Users, Car } from 'lucide-react';
-import { getDriverStandings, getConstructorStandings } from '../api/f1Api';
-import type { DriverStanding, ConstructorStanding } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { useMemo, useState } from 'react';
+import { Trophy, Users } from 'lucide-react';
+import {
+  getConstructorStandings,
+  getDriverStandings,
+  getSchedule,
+  type ConstructorStanding,
+  type DriverStanding,
+} from '../api/f1Api';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { allTeams, getTeam, getTeamColor } from '../data/teams';
+import { Select, type SelectOption } from '../components/ui/Select';
+import { countryFlag, formatDate, formatNumber, pluralizePoints, surname } from '../lib/format';
+import { getCompletedRaces } from '../lib/races';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { Tabs } from '../components/ui/Tabs';
+import { DataTable, PositionCell, Td, Th, Tr } from '../components/ui/Table';
+import { TeamDot } from '../components/ui/Badge';
+import { DriverAvatar } from '../components/ui/Atoms';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { SkeletonRows } from '../components/ui/Skeleton';
 
-type Tab = 'drivers' | 'constructors';
+const POLL = 180_000;
 
-const TEAM_COLORS: Record<string, string> = {
-  'Red Bull': '#3671C6', 'Mercedes': '#27F4D2', 'Ferrari': '#E8002D',
-  'McLaren': '#FF8000', 'Aston Martin': '#229971', 'Alpine': '#FF87BC',
-  'Williams': '#64C4FF', 'RB': '#6692FF', 'Kick Sauber': '#52E252',
-  'Haas': '#B6BABD',
-};
-
-const DRIVER_TEAMS: Record<string, string> = {
-  'Max Verstappen': 'Red Bull', 'Lando Norris': 'McLaren',
-  'Oscar Piastri': 'McLaren', 'Charles Leclerc': 'Ferrari',
-  'Lewis Hamilton': 'Ferrari', 'George Russell': 'Mercedes',
-  'Kimi Antonelli': 'Mercedes', 'Fernando Alonso': 'Aston Martin',
-  'Lance Stroll': 'Aston Martin', 'Pierre Gasly': 'Alpine',
-  'Jack Doohan': 'Alpine', 'Alexander Albon': 'Williams',
-  'Carlos Sainz': 'Williams', 'Nico Hulkenberg': 'Kick Sauber',
-  'Gabriel Bortoleto': 'Kick Sauber', 'Yuki Tsunoda': 'RB',
-  'Liam Lawson': 'RB', 'Esteban Ocon': 'Haas',
-  'Oliver Bearman': 'Haas',
-};
-
-const TEAM_ORDER = ['Red Bull', 'McLaren', 'Ferrari', 'Mercedes', 'Aston Martin', 'Alpine', 'Williams', 'RB', 'Kick Sauber', 'Haas'];
+type Tab = 'drivers' | 'teams';
 
 export default function Standings() {
+  useDocumentTitle('Standings');
   const [tab, setTab] = useState<Tab>('drivers');
-  const [drivers, setDrivers] = useState<DriverStanding[]>([]);
-  const [constructors, setConstructors] = useState<ConstructorStanding[]>([]);
-  const [loading, setLoading] = useState(true);
+  const [round, setRound] = useState<string>(''); // '' = latest round
 
-  useEffect(() => {
-    let interval: ReturnType<typeof setInterval> | null = null;
+  const drivers = useAsync<DriverStanding[]>(
+    () => getDriverStandings(undefined, round || undefined),
+    [round],
+    { intervalMs: POLL },
+  );
+  const constructors = useAsync<ConstructorStanding[]>(
+    () => getConstructorStandings(undefined, round || undefined),
+    [round],
+    { intervalMs: POLL },
+  );
 
-    const load = () => {
-      return Promise.all([getDriverStandings(), getConstructorStandings()]).then(([d, c]) => {
-        setDrivers(d);
-        setConstructors(c);
-        setLoading(false);
-      }).catch(() => setLoading(false));
-    };
+  const active = tab === 'drivers' ? drivers : constructors;
+  const rows = useMemo(() => active.data ?? [], [active.data]);
 
-    setLoading(true);
-    load().then(() => {
-      interval = setInterval(() => { load(); }, 180_000);
-    });
-
-    return () => { if (interval) clearInterval(interval); };
-  }, []);
-
-  const data = tab === 'drivers' ? drivers : constructors;
-
-  const getTeamForItem = (item: DriverStanding | ConstructorStanding) => {
-    return tab === 'drivers' ? DRIVER_TEAMS[(item as DriverStanding).driverName] : (item as ConstructorStanding).constructorName;
-  };
-
-  const getNameForItem = (item: DriverStanding | ConstructorStanding) => {
-    return tab === 'drivers' ? (item as DriverStanding).driverName : (item as ConstructorStanding).constructorName;
-  };
-
-  const getKeyForItem = (item: DriverStanding | ConstructorStanding) => {
-    return tab === 'drivers' ? (item as DriverStanding).driverId : (item as ConstructorStanding).constructorId;
-  };
+  const leader = rows[0];
+  const topThree = useMemo(
+    () => (leader ? rows.filter((r) => Number(r.position) <= 3) : []),
+    [rows, leader],
+  );
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow={`${new Date().getFullYear()} Championship`}
+        title="Standings"
+        description="Championship classification after the latest completed round, with points gaps to the leader."
+        actions={
+          <>
+            <div className="w-40">
+              <RoundPicker value={round} onChange={setRound} />
+            </div>
+            <RefreshHint
+              at={active.lastFetchedAt ?? Date.now()}
+              onRefresh={active.refresh}
+              busy={active.refreshing}
+            />
+          </>
+        }
+      >
+        <div className="mt-6">
+          <Tabs
+            items={[
+              { value: 'drivers', label: 'Drivers', hint: `${drivers.data?.length ?? ''}` },
+              { value: 'teams', label: 'Constructors', hint: `${constructors.data?.length ?? ''}` },
+            ]}
+            value={tab}
+            onChange={setTab}
+            aria-label="Standings category"
+          />
+        </div>
+      </PageHeader>
 
-      {/* Tabs */}
-      <div style={{ maxWidth: 900, margin: '24px auto 20px', padding: '0 16px' }} className="fade-in-up">
-        <h1 style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 16, display: 'flex', alignItems: 'center', gap: 8 }}><Trophy size={22} color="#e10600" /> Championship Standings</h1>
-        <div style={{ display: 'flex', gap: 4, padding: 4, borderRadius: 12, background: 'rgba(255,255,255,0.03)' }}>
-          {(['drivers', 'constructors'] as const).map((t) => {
-            const active = tab === t;
+      {/* ---- Leader feature ---- */}
+      {active.loading ? (
+        <div className="mb-4 grid gap-4 sm:grid-cols-3">
+          {[0, 1, 2].map((i) => (
+            <div key={i} className="shimmer h-28 rounded-lg" />
+          ))}
+        </div>
+      ) : topThree.length > 0 ? (
+        <div className="mb-4 grid gap-3 sm:grid-cols-3">
+          {topThree.map((row, i) => {
+            const isDriver = tab === 'drivers';
+            const name = isDriver
+              ? (row as DriverStanding).driverName
+              : (row as ConstructorStanding).constructorName;
+            const color = isDriver
+              ? getTeamColor((row as DriverStanding).teamName)
+              : getTeamColor((row as ConstructorStanding).constructorName);
+            const points = Number(row.points);
+            const leadPoints = Number(leader?.points ?? 0);
+
             return (
-              <button
-                key={t}
-                onClick={() => setTab(t)}
-                style={{
-                  flex: 1, padding: '10px 0', borderRadius: 10, fontSize: 14, fontWeight: 600, cursor: 'pointer',
-                  border: 'none', transition: 'all 0.15s', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 6,
-                  fontFamily: 'inherit',
-                  background: active ? 'rgba(225,6,0,0.15)' : 'transparent',
-                  color: active ? '#e10600' : '#737373',
-                  boxShadow: active ? 'inset 0 -2px 0 #e10600' : 'none',
-                }}
+              <Panel
+                key={row.position}
+                className={`relative overflow-hidden ${i === 0 ? 'sm:order-first' : ''}`}
               >
-                {t === 'drivers' ? <><Users size={16} /> Drivers</> : <><Car size={16} /> Constructors</>}
-              </button>
+                {i === 0 && (
+                  <span
+                    aria-hidden
+                    className="accent-bar absolute top-0 left-0 h-full w-1"
+                  />
+                )}
+                <div className="flex items-center gap-3.5">
+                  {isDriver ? (
+                    <DriverAvatar
+                      number={(row as DriverStanding).driverNumber}
+                      name={name}
+                      color={color}
+                      size="lg"
+                    />
+                  ) : (
+                    <div
+                      className="flex size-16 shrink-0 items-center justify-center rounded-full"
+                      style={{ backgroundColor: `${color}22`, border: `1.5px solid ${color}` }}
+                    >
+                      <TeamDot color={color} className="size-5 ring-0" />
+                    </div>
+                  )}
+                  <div className="min-w-0 flex-1">
+                    <p className="eyebrow mb-1.5">
+                      {i === 0 ? 'Championship leader' : `P${row.position}`}
+                    </p>
+                    <p className="truncate text-[15px] font-semibold text-mist-50">
+                      {isDriver ? surname(name) : name}
+                    </p>
+                    <p className="num mt-2 text-2xl leading-none font-bold text-mist-50">
+                      {formatNumber(row.points)}
+                      <span className="ml-1.5 text-[11px] font-medium text-mist-500">
+                        pts
+                      </span>
+                    </p>
+                  </div>
+                </div>
+                <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                  <span className="font-mono text-[10px] text-mist-500">
+                    {row.wins} {Number(row.wins) === 1 ? 'win' : 'wins'}
+                  </span>
+                  <span className="num text-[11px] text-mist-400">
+                    {i === 0
+                      ? '—'
+                      : `−${leadPoints - points} to leader`}
+                  </span>
+                </div>
+              </Panel>
             );
           })}
         </div>
-      </div>
+      ) : null}
 
-      {/* Content */}
-      <div style={{ maxWidth: 900, margin: '0 auto 32px', padding: '0 16px' }}>
-        {loading ? (
-          <div>
-            {/* Leader skeleton */}
-            <div className="glass" style={{ borderRadius: 14, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div className="skeleton skeleton-circle" style={{ width: 48, height: 48, flexShrink: 0 }} />
-              <div style={{ flex: 1, display: 'flex', flexDirection: 'column', gap: 6 }}>
-                <div className="skeleton skeleton-text" style={{ width: '50%', height: 16 }} />
-                <div className="skeleton skeleton-text" style={{ width: '30%', height: 10 }} />
-              </div>
-              <div className="skeleton skeleton-text" style={{ width: 40, height: 20 }} />
+      {/* ---- Full table ---- */}
+      <Panel flush>
+        <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+          {active.error ? (
+            <ErrorState
+              message={active.error.message}
+              onRetry={active.refresh}
+              className="py-6"
+            />
+          ) : active.loading ? (
+            <div className="px-1 py-2">
+              <SkeletonRows rows={8} />
             </div>
-            {/* Table skeleton */}
-            <div className="glass" style={{ borderRadius: 14, padding: 16 }}>
-              {Array.from({ length: 10 }).map((_, i) => (
-                <div key={i} style={{ display: 'flex', alignItems: 'center', gap: 8, padding: '8px 0', borderBottom: '1px solid rgba(255,255,255,0.02)' }}>
-                  <div className="skeleton skeleton-text" style={{ width: 16, height: 12 }} />
-                  <div className="skeleton skeleton-text" style={{ flex: 1, height: 12, maxWidth: `${70 - i * 4}%` }} />
-                  <div className="skeleton skeleton-text" style={{ width: 30, height: 12 }} />
-                </div>
-              ))}
-            </div>
-          </div>
-        ) : data.length === 0 ? (
-          <div style={{ textAlign: 'center', padding: 48, color: '#737373' }}>No standings data available</div>
-        ) : (
-          <>
-            {/* Leader Card */}
-            <div className="glass-strong scale-in" style={{ borderRadius: 14, padding: 16, marginBottom: 16, display: 'flex', alignItems: 'center', gap: 14 }}>
-              <div style={{
-                width: 48, height: 48, borderRadius: '50%',
-                display: 'flex', alignItems: 'center', justifyContent: 'center',
-                fontSize: 20, fontWeight: 900, color: '#fff', flexShrink: 0,
-                background: 'linear-gradient(135deg, rgba(225,6,0,0.3), rgba(225,6,0,0.1))',
-                border: '2px solid rgba(225,6,0,0.4)',
-              }}>
-                1
-              </div>
-              <div style={{ flex: 1, minWidth: 0 }}>
-                <div style={{ fontSize: 17, fontWeight: 800, color: '#fff', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                  {getNameForItem(data[0])}
-                </div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: 8, marginTop: 2 }}>
-                  {tab === 'drivers' && (
-                    <span style={{
-                      display: 'inline-block', width: 24, height: 3, borderRadius: 2,
-                      background: TEAM_COLORS[getTeamForItem(data[0]) ?? ''] ?? '#525252',
-                    }} />
-                  )}
-                  <span style={{ fontSize: 12, color: '#737373' }}>Championship Leader</span>
-                </div>
-              </div>
-              <div style={{ fontSize: 28, fontWeight: 900, color: '#fff', flexShrink: 0 }}>{data[0].points}</div>
-            </div>
+          ) : rows.length === 0 ? (
+            <EmptyState
+              icon={tab === 'drivers' ? <Users size={18} /> : <Trophy size={18} />}
+              title="No standings available"
+              description={
+                round
+                  ? 'There were no classified drivers at this round.'
+                  : 'The season has not started yet — check back after the first race.'
+              }
+            />
+          ) : (
+            <DataTable>
+              <thead>
+                <tr>
+                  <Th className="w-14">Pos</Th>
+                  <Th>{tab === 'drivers' ? 'Driver' : 'Constructor'}</Th>
+                  {tab === 'drivers' && <Th className="hidden sm:table-cell">Team</Th>}
+                  <Th align="right" className="hidden sm:table-cell">
+                    Wins
+                  </Th>
+                  <Th align="right">Pts</Th>
+                  <Th align="right" className="hidden md:table-cell">
+                    Gap
+                  </Th>
+                </tr>
+              </thead>
+              <tbody>
+                {rows.map((row, i) => (
+                  <Tr
+                    key={
+                      tab === 'drivers'
+                        ? (row as DriverStanding).driverId
+                        : (row as ConstructorStanding).constructorId
+                    }
+                  >
+                    <RowCells
+                      row={row}
+                      tab={tab}
+                      leaderPoints={Number(leader?.points ?? 0)}
+                      index={i}
+                    />
+                  </Tr>
+                ))}
+              </tbody>
+            </DataTable>
+          )}
+        </div>
+      </Panel>
 
-            {/* Standings List */}
-            <div className="glass scale-in" style={{ borderRadius: 14, overflow: 'hidden', animationDelay: '0.1s' }}>
-              <div style={{ maxHeight: '70vh', overflowY: 'auto' }}>
-                {/* Header */}
-                <div className="hidden-mobile" style={{
-                  display: 'flex', alignItems: 'center', padding: '10px 14px',
-                  background: 'rgba(17,17,17,0.95)', backdropFilter: 'blur(12px)',
-                  position: 'sticky', top: 0, zIndex: 2,
-                  borderBottom: '1px solid rgba(255,255,255,0.06)',
-                }}>
-                  <span style={{ ...thStyle, width: 40, minWidth: 40 }}>Pos</span>
-                  <span style={{ ...thStyle, flex: 1, textAlign: 'left' }}>{tab === 'drivers' ? 'Driver' : 'Constructor'}</span>
-                  <span style={{ ...thStyle, textAlign: 'right', width: 60, minWidth: 60 }}>Pts</span>
-                  <span style={{ ...thStyle, textAlign: 'right', width: 80, minWidth: 80 }}>Gap</span>
-                </div>
-                {/* Rows */}
-                {data.map((item, i) => {
-                  const team = getTeamForItem(item);
-                  const color = TEAM_COLORS[team ?? ''] ?? '#737373';
-                  const name = getNameForItem(item);
-                  const pts = Number(item.points);
-                  const leaderPts = Number(data[0].points) || 1;
-                  const pct = (pts / leaderPts) * 100;
-                  const gap = i === 0 ? 'Leader' : `-${Number(data[0].points) - pts}`;
-                  return (
-                    <div key={getKeyForItem(item)} style={{
-                      padding: '10px 14px',
-                      background: i % 2 === 0 ? 'transparent' : 'rgba(255,255,255,0.02)',
-                      borderBottom: '1px solid rgba(255,255,255,0.02)',
-                    }}>
-                      {/* Top line: pos + name ... points */}
-                      <div style={{ display: 'flex', alignItems: 'center', gap: 8 }}>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: 6, width: 40, minWidth: 40, flexShrink: 0 }}>
-                          <span style={{
-                            display: 'inline-block', width: 3, height: 18, borderRadius: 2,
-                            background: i === 0 ? '#facc15' : color,
-                            opacity: i < 3 ? 1 : 0.4,
-                          }} />
-                          <span style={{ fontSize: 13, fontWeight: 700, color: i === 0 ? '#facc15' : '#737373' }}>{item.positionText}</span>
-                        </div>
-                        <span style={{ flex: 1, color: '#d4d4d4', fontWeight: 600, fontSize: 13, minWidth: 0, overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>{name}</span>
-                        <span style={{ fontWeight: 700, color: '#fff', fontSize: 14, flexShrink: 0, width: 60, minWidth: 60, textAlign: 'right', fontVariantNumeric: 'tabular-nums' }}>{item.points}</span>
-                        <div className="hidden-mobile" style={{ width: 80, minWidth: 80, flexShrink: 0 }} />
-                      </div>
-                      {/* Bottom line: bar ... gap */}
-                      <div className="hidden-mobile" style={{ display: 'flex', alignItems: 'center', marginTop: 5, paddingLeft: 46 }}>
-                        <div style={{ height: 4, background: 'rgba(255,255,255,0.04)', borderRadius: 2, overflow: 'hidden', width: 200, flexShrink: 0 }}>
-                          <div style={{ height: '100%', width: `${pct}%`, borderRadius: 2, background: i === 0 ? color : `${color}88` }} className="bar-animate" />
-                        </div>
-                        <div style={{ flex: 1 }} />
-                        <span style={{ fontSize: 12, color: i === 0 ? '#facc15' : '#737373', width: 80, minWidth: 80, textAlign: 'right', flexShrink: 0, fontVariantNumeric: 'tabular-nums' }}>{gap}</span>
-                      </div>
-                    </div>
-                  );
-                })}
-              </div>
-            </div>
-
-            {/* Team Color Legend (drivers only) */}
-            {tab === 'drivers' && (
-              <div className="glass scale-in" style={{ borderRadius: 12, padding: 14, marginTop: 16, animationDelay: '0.2s' }}>
-                <h3 style={{ fontSize: 10, fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.1em', color: '#737373', marginBottom: 10 }}>Team Colors</h3>
-                <div style={{ display: 'flex', flexWrap: 'wrap', gap: '6px 16px' }}>
-                  {TEAM_ORDER.map((team) => (
-                    <div key={team} style={{ display: 'flex', alignItems: 'center', gap: 6 }}>
-                      <span style={{ display: 'inline-block', width: 10, height: 10, borderRadius: 2, background: TEAM_COLORS[team] }} />
-                      <span style={{ fontSize: 11, color: '#a3a3a3' }}>{team}</span>
-                    </div>
-                  ))}
-                </div>
-              </div>
-            )}
-          </>
-        )}
-      </div>
-
-      <Footer />
-    </PageWrapper>
+      <TeamLegend />
+    </PageContainer>
   );
 }
 
-const thStyle: React.CSSProperties = {
-  fontSize: 10, fontWeight: 700, textTransform: 'uppercase',
-  letterSpacing: '0.1em', color: '#737373',
-};
+function RowCells({
+  row,
+  tab,
+  leaderPoints,
+  index,
+}: {
+  row: DriverStanding | ConstructorStanding;
+  tab: Tab;
+  leaderPoints: number;
+  index: number;
+}) {
+  const isDriver = tab === 'drivers';
+  const d = row as DriverStanding;
+  const c = row as ConstructorStanding;
+  const name = isDriver ? d.driverName : c.constructorName;
+  const color = isDriver ? getTeamColor(d.teamName) : getTeamColor(c.constructorName);
+  const points = Number(row.points);
+  const gap = index === 0 ? null : leaderPoints - points;
+
+  return (
+    <>
+      <Td>
+        <PositionCell position={row.positionText} />
+      </Td>
+      <Td>
+        <div className="flex items-center gap-3">
+          {isDriver ? (
+            <DriverAvatar number={d.driverNumber} name={name} color={color} size="sm" />
+          ) : (
+            <TeamDot color={color} />
+          )}
+          <div className="min-w-0">
+            <p className="truncate text-[13px] font-semibold text-mist-50">
+              {isDriver ? surname(name) : name}
+            </p>
+            {isDriver && (
+              <p className="num mt-0.5 font-mono text-[10px] text-mist-500">
+                #{d.driverNumber}
+              </p>
+            )}
+          </div>
+        </div>
+      </Td>
+      {isDriver && (
+        <Td className="hidden sm:table-cell">
+          <span className="flex items-center gap-2 text-[12px] text-mist-400">
+            <TeamDot color={color} />
+            <span className="truncate">{d.teamName}</span>
+          </span>
+        </Td>
+      )}
+      <Td align="right" className="hidden sm:table-cell">
+        <span className="num text-[12.5px] text-mist-300">{row.wins}</span>
+      </Td>
+      <Td align="right">
+        <span className="num text-[14px] font-bold text-mist-50">
+          {formatNumber(row.points)}
+        </span>
+        {points > 0 && (
+          <span className="ml-1 hidden font-mono text-[9.5px] text-mist-600 lg:inline">
+            {pluralizePoints(row.points)}
+          </span>
+        )}
+      </Td>
+      <Td align="right" className="hidden md:table-cell">
+        <span className="num text-[12px] text-mist-400">
+          {gap === null ? 'Leader' : `−${gap}`}
+        </span>
+      </Td>
+    </>
+  );
+}
+
+function RoundPicker({
+  value,
+  onChange,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+}) {
+  const { data: races } = useAsync(() => getSchedule(), []);
+
+  const options = useMemo<SelectOption[]>(() => {
+    const now = Date.now();
+    return getCompletedRaces(races ?? [], now)
+      .reverse()
+      .map((race) => ({
+        value: race.round,
+        label: `R${Number(race.round)} · ${race.raceName}`,
+        meta: formatDate(race.date),
+        lead: (
+          <span className="shrink-0 text-[13px] leading-none">
+            {countryFlag(race.country)}
+          </span>
+        ),
+      }));
+  }, [races]);
+
+  return (
+    <Select
+      options={options}
+      value={value}
+      onChange={onChange}
+      label="Championship round"
+      emptyText="No completed rounds"
+    />
+  );
+}
+
+function TeamLegend() {
+  const teams = allTeams.filter((t) => !['rb', 'sauber'].includes(t.id));
+  return (
+    <Panel className="mt-4">
+      <p className="eyebrow mb-3.5">Team colours</p>
+      <ul className="flex flex-wrap gap-x-5 gap-y-2.5">
+        {teams.map((team) => {
+          const resolved = getTeam(team.id);
+          return (
+            <li
+              key={team.id}
+              className="inline-flex items-center gap-2 text-[11.5px] text-mist-400"
+            >
+              <span
+                aria-hidden
+                className="h-2.5 w-2.5 shrink-0 rounded-[2px] skew-x-[-18deg]"
+                style={{ backgroundColor: resolved.color }}
+              />
+              {resolved.name}
+            </li>
+          );
+        })}
+      </ul>
+    </Panel>
+  );
+}

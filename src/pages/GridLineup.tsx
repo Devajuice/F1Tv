@@ -1,287 +1,258 @@
-import { useState, useEffect } from 'react';
-import { Grid3x3, ChevronDown } from 'lucide-react';
-import { getSchedule, getGridLineup } from '../api/f1Api';
-import type { Race, QualifyingResult } from '../api/f1Api';
-import Header from '../components/Header';
-import Footer from '../components/Footer';
-import PageWrapper from '../components/PageWrapper';
+import { useEffect, useMemo, useState } from 'react';
+import { Grid3x3 } from 'lucide-react';
+import {
+  getGridLineup,
+  getSchedule,
+  type QualifyingResult,
+  type Race,
+} from '../api/f1Api';
+import { useAsync } from '../hooks/useAsync';
+import { useDocumentTitle } from '../hooks/useDocumentTitle';
+import { getTeamColor } from '../data/teams';
+import { formatLapTime, initials, surname } from '../lib/format';
+import { getRacesWithQualifying } from '../lib/races';
+import { PageContainer, PageHeader } from '../components/ui/PageHeader';
+import { Panel } from '../components/ui/Panel';
+import { RaceSelect } from '../components/ui/RaceSelect';
+import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
+import { SkeletonRows } from '../components/ui/Skeleton';
+import { Flag, TrackImage } from '../components/ui/Atoms';
+import { cn } from '../lib/cn';
 
-const TEAM_COLORS: Record<string, string> = {
-  'Red Bull': '#3671C6', 'Mercedes': '#27F4D2', 'Ferrari': '#E8002D',
-  'McLaren': '#FF8000', 'Aston Martin': '#229971', 'Alpine': '#FF87BC',
-  'Williams': '#64C4FF', 'RB': '#6692FF', 'Kick Sauber': '#52E252',
-  'Haas': '#B6BABD',
-};
+const POLL = 30_000;
 
-function getTeamColor(name: string): string {
-  return TEAM_COLORS[name] ?? '#737373';
-}
+/**
+ * Starting grid.
+ *
+ * Keeps the staggered two-column track formation on desktop — it is the most
+ * distinctive view on the site — and falls back to a flat list on mobile.
+ */
+export default function GridLineup() {
+  useDocumentTitle('Starting Grid');
+  const [round, setRound] = useState('');
 
-function GridCard({ r, align }: { r: QualifyingResult; align: 'left' | 'right' }) {
-  const color = getTeamColor(r.constructorName);
-  const pos = parseInt(r.position);
-  const bestQ = r.q3 ?? r.q2 ?? r.q1;
-  const isPole = pos === 1;
+  const { data: races, loading: loadingRaces } = useAsync<Race[]>(
+    () => getSchedule(),
+    [],
+  );
+
+  const withQuali = useMemo(() => getRacesWithQualifying(races ?? []), [races]);
+
+  useEffect(() => {
+    if (round || withQuali.length === 0) return;
+    setRound(withQuali[withQuali.length - 1].round);
+  }, [withQuali, round]);
+
+  const race = withQuali.find((r) => r.round === round) ?? null;
+
+  const { data, loading, error, refresh, refreshing, lastFetchedAt } =
+    useAsync<QualifyingResult[]>(
+      async () => {
+        if (!race) return [];
+        return getGridLineup(race.season, race.round);
+      },
+      [race?.season, race?.round],
+      { intervalMs: POLL, enabled: Boolean(race) },
+    );
+
+  const grid = useMemo(() => data ?? [], [data]);
+  // Pair front row then the rest: 1|2, 3|4, 5|6 …
+  const rows = useMemo(() => {
+    const pairs: Array<[QualifyingResult | undefined, QualifyingResult | undefined]> = [];
+    for (let i = 0; i < grid.length; i += 2) {
+      pairs.push([grid[i], grid[i + 1]]);
+    }
+    return pairs;
+  }, [grid]);
+
+  const pole = grid[0];
 
   return (
-    <div style={{
-      display: 'flex', alignItems: 'center', gap: 10,
-      flexDirection: align === 'right' ? 'row-reverse' : 'row',
-      textAlign: align === 'right' ? 'right' : 'left',
-    }}>
-      <div style={{
-        width: 40, height: 40, borderRadius: 10, flexShrink: 0,
-        display: 'flex', alignItems: 'center', justifyContent: 'center',
-        background: `linear-gradient(135deg, ${color}30, ${color}08)`,
-        border: `2px solid ${isPole ? '#facc15' : `${color}60`}`,
-        boxShadow: isPole ? '0 0 16px rgba(250,204,21,0.2)' : 'none',
-      }}>
-        <span style={{
-          fontSize: isPole ? 16 : 14, fontWeight: 900,
-          color: isPole ? '#facc15' : '#fff',
-          fontVariantNumeric: 'tabular-nums',
-        }}>{r.position}</span>
-      </div>
+    <PageContainer className="pt-6 sm:pt-8">
+      <PageHeader
+        eyebrow="Race day"
+        title="Starting Grid"
+        description="Grid positions as set by qualifying. Front row, then the rest of the field in formation order."
+        actions={
+          <>
+            <div className="w-full min-w-56 sm:w-72">
+              <RaceSelect
+                races={withQuali}
+                value={round}
+                onChange={setRound}
+                label="Grand Prix"
+              />
+            </div>
+            <RefreshHint at={lastFetchedAt} onRefresh={refresh} busy={refreshing} />
+          </>
+        }
+      />
 
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{
-          display: 'flex', alignItems: 'center', gap: 5,
-          flexDirection: align === 'right' ? 'row-reverse' : 'row',
-        }}>
-          <span style={{ width: 6, height: 6, borderRadius: '50%', background: color, flexShrink: 0 }} />
-          <span style={{
-            fontSize: 13, fontWeight: 700, color: '#fff',
-            overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap',
-          }}>
-            {r.driverName.split(' ').pop()}
-          </span>
-          {r.driverNumber && <span style={{ fontSize: 9, color: '#525252' }}>#{r.driverNumber}</span>}
-        </div>
-        <div style={{
-          fontSize: 10, color: '#525252', marginTop: 1,
-          paddingLeft: align === 'right' ? 0 : 11,
-          paddingRight: align === 'right' ? 11 : 0,
-          textAlign: align === 'right' ? 'right' : 'left',
-        }}>
-          {r.constructorName}
-        </div>
-      </div>
-
-      {bestQ && (
-        <span style={{
-          fontSize: 11, fontWeight: 600, color: '#737373',
-          fontVariantNumeric: 'tabular-nums', flexShrink: 0,
-        }}>
-          {bestQ}
-        </span>
+      {pole && race && (
+        <Panel className="notched relative mb-4 overflow-hidden">
+          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+            <TrackImage circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
+            <div className="min-w-0 flex-1">
+              <p className="eyebrow mb-2 flex items-center gap-2">
+                <span className="accent-bar inline-block h-3 w-1.5" />
+                Pole sitter
+              </p>
+              <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
+                {pole.driverName}
+              </h2>
+              <p className="mt-2 flex flex-wrap items-center gap-x-2.5 text-[12px] text-mist-400">
+                <Flag country={race.country} />
+                {race.circuitName}
+                <span className="text-mist-600">·</span>
+                {race.raceName}
+              </p>
+            </div>
+            <div className="shrink-0 rounded-md border border-sodium/30 bg-sodium/10 px-5 py-3 sm:text-right">
+              <p className="eyebrow mb-1.5 sm:justify-end">Pole time</p>
+              <p className="num text-2xl leading-none font-bold text-sodium">
+                {formatLapTime(pole.q3 ?? pole.q2 ?? pole.q1)}
+              </p>
+            </div>
+          </div>
+        </Panel>
       )}
-    </div>
+
+      <Panel flush>
+        {error ? (
+          <ErrorState message={error.message} onRetry={refresh} />
+        ) : loadingRaces || loading ? (
+          <div className="p-5 sm:p-6">
+            <SkeletonRows rows={10} />
+          </div>
+        ) : grid.length === 0 ? (
+          <EmptyState
+            icon={<Grid3x3 size={18} />}
+            title="Grid not set"
+            description="The starting grid appears once qualifying has been completed and classified."
+          />
+        ) : (
+          <div className="p-4 sm:p-6">
+            {/* ---- Start line ---- */}
+            <div className="mb-3 flex items-center gap-3">
+              <span className="h-px flex-1 bg-linear-to-r from-transparent via-white/20 to-transparent" />
+              <span className="font-mono text-[9.5px] font-semibold tracking-[0.24em] text-mist-500 uppercase">
+                Start
+              </span>
+              <span className="h-px flex-1 bg-linear-to-r from-transparent via-white/20 to-transparent" />
+            </div>
+
+            {/* ---- Track formation (desktop) ---- */}
+            <div className="hidden max-w-2xl flex-col gap-1.5 md:flex">
+              {rows.map(([left, right], rowIndex) => (
+                <div
+                  key={rowIndex}
+                  className="grid grid-cols-[1fr_44px_1fr] items-stretch"
+                >
+                  <div className="flex justify-end">
+                    {left && <Slot entry={left} side="left" />}
+                  </div>
+                  <div className="relative">
+                    <span
+                      aria-hidden
+                      className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-white/18 to-transparent"
+                    />
+                    <span className="num absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center font-mono text-[10px] text-mist-600">
+                      {left && right ? rowIndex + 1 : ''}
+                    </span>
+                  </div>
+                  <div className={cn('flex justify-start', rowIndex % 2 === 0 && 'mt-3.5')}>
+                    {right && <Slot entry={right} side="right" />}
+                  </div>
+                </div>
+              ))}
+            </div>
+
+            {/* ---- Flat list (mobile) ---- */}
+            <ul className="flex flex-col gap-1.5 md:hidden">
+              {grid.map((entry) => (
+                <li key={entry.driverId}>
+                  <Slot entry={entry} side="flat" />
+                </li>
+              ))}
+            </ul>
+          </div>
+        )}
+      </Panel>
+    </PageContainer>
   );
 }
 
-export default function GridLineup() {
-  const [races, setRaces] = useState<Race[]>([]);
-  const [selectedRound, setSelectedRound] = useState<string>('');
-  const [results, setResults] = useState<QualifyingResult[]>([]);
-  const [loading, setLoading] = useState(true);
-  const [resultLoading, setResultLoading] = useState(false);
-  const [showDropdown, setShowDropdown] = useState(false);
-  const [dropdownPos, setDropdownPos] = useState({ top: 0, left: 0, width: 0 });
-
-  useEffect(() => {
-    getSchedule()
-      .then((all) => {
-        const completed = all.filter((r) => {
-          const refDate = r.qualifyingDate
-            ? new Date(r.qualifyingDate + (r.qualifyingTime ? `T${r.qualifyingTime}` : 'T14:00:00Z'))
-            : new Date(r.date + (r.time ? `T${r.time}` : 'T14:00:00Z'));
-          return refDate < new Date();
-        });
-        setRaces(completed);
-        if (completed.length > 0) setSelectedRound(completed[completed.length - 1].round);
-      })
-      .catch(() => {})
-      .finally(() => setLoading(false));
-  }, []);
-
-  useEffect(() => {
-    if (!selectedRound) return;
-    let cancelled = false;
-
-    const fetch = () => {
-      getGridLineup(new Date().getFullYear().toString(), selectedRound)
-        .then((r) => { if (!cancelled) setResults(r); })
-        .catch(() => { if (!cancelled) setResults([]); })
-        .finally(() => { if (!cancelled) setResultLoading(false); });
-    };
-
-    setResultLoading(true);
-    fetch();
-    const timer = setInterval(fetch, 30_000);
-    return () => { cancelled = true; clearInterval(timer); };
-  }, [selectedRound]);
-
-  const selectedRace = races.find((r) => r.round === selectedRound);
+function Slot({
+  entry,
+  side,
+}: {
+  entry: QualifyingResult;
+  side: 'left' | 'right' | 'flat';
+}) {
+  const color = getTeamColor(entry.constructorName);
+  const pole = entry.position === '1';
+  const best = entry.q3 ?? entry.q2 ?? entry.q1;
 
   return (
-    <PageWrapper>
-      <Header showBack backTo="/home" backLabel="Home" />
-
-      <div style={{ maxWidth: 600, margin: '0 auto', padding: '24px 16px' }}>
-        <h1 className="fade-in-up" style={{ fontSize: 22, fontWeight: 800, color: '#fff', marginBottom: 20, display: 'flex', alignItems: 'center', gap: 8 }}>
-          <Grid3x3 size={22} color="#e10600" /> Starting Grid
-        </h1>
-
-        <div className="fade-in-up" style={{ position: 'relative', marginBottom: 24 }}>
-          <button
-            onClick={() => {
-              setShowDropdown(!showDropdown);
-              if (!showDropdown) {
-                requestAnimationFrame(() => {
-                  const el = document.querySelector('[data-grid-selector]');
-                  if (el) { const r = el.getBoundingClientRect(); setDropdownPos({ top: r.bottom + 4, left: r.left, width: r.width }); }
-                });
-              }
-            }}
-            data-grid-selector
-            style={{
-              width: '100%', display: 'flex', alignItems: 'center', justifyContent: 'space-between',
-              padding: '12px 14px', borderRadius: 12, cursor: 'pointer',
-              background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.08)',
-              color: '#d4d4d4', fontSize: 14, fontWeight: 600, fontFamily: 'inherit',
-            }}
-          >
-            <span>{loading ? 'Loading...' : selectedRace ? `Round ${selectedRace.round}: ${selectedRace.raceName}` : 'Select a race'}</span>
-            <ChevronDown size={16} color="#737373" style={{ transform: showDropdown ? 'rotate(180deg)' : 'none', transition: 'transform 0.2s' }} />
-          </button>
-        </div>
-
-        {resultLoading ? (
-          <div style={{ display: 'flex', flexDirection: 'column', gap: 8 }}>
-            {Array.from({ length: 10 }).map((_, i) => (
-              <div key={i} className="glass" style={{ borderRadius: 12, padding: '10px 12px', display: 'flex', alignItems: 'center', gap: 10 }}>
-                <div className="skeleton skeleton-circle" style={{ width: 36, height: 36 }} />
-                <div style={{ flex: 1 }}>
-                  <div className="skeleton skeleton-text" style={{ width: '70%', height: 12 }} />
-                  <div className="skeleton skeleton-text" style={{ width: '40%', height: 10, marginTop: 4 }} />
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : results.length === 0 ? (
-          <div className="glass" style={{ borderRadius: 14, padding: 48, textAlign: 'center', color: '#737373' }}>
-            No grid data available for this round
-          </div>
-        ) : (
-          <>
-            {/* Desktop: staggered grid */}
-            <div className="hidden-mobile fade-in-up" style={{ flexDirection: 'column' }}>
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 16, padding: '0 8px' }}>
-                <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, rgba(225,6,0,0.4), transparent)' }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#e10600', textTransform: 'uppercase', letterSpacing: '0.15em', flexShrink: 0 }}>START</span>
-                <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, rgba(225,6,0,0.4), transparent)' }} />
-              </div>
-
-              <div style={{ display: 'flex', flexDirection: 'column', gap: 4 }}>
-                {(() => {
-                  const rows: [QualifyingResult | null, QualifyingResult | null][] = [];
-                  for (let i = 0; i < results.length; i += 2) {
-                    rows.push([results[i] ?? null, results[i + 1] ?? null]);
-                  }
-                  return rows.map(([left, right], i) => (
-                    <div key={i} style={{ display: 'grid', gridTemplateColumns: '1fr 36px 1fr', gap: 0, alignItems: 'center' }}>
-                      <div style={{ paddingRight: 8 }}>
-                        {left && <GridCard r={left} align="left" />}
-                      </div>
-                      <div style={{ width: 36, display: 'flex', flexDirection: 'column', alignItems: 'center', justifyContent: 'center', position: 'relative' }}>
-                        {i < rows.length - 1 && (
-                          <div style={{ position: 'absolute', top: 20, bottom: -4, width: 2, background: 'rgba(255,255,255,0.06)' }} />
-                        )}
-                        <span style={{ fontSize: 8, fontWeight: 700, color: '#333', background: '#0a0a0a', padding: '2px 4px', borderRadius: 4, position: 'relative', zIndex: 1 }}>{i + 1}</span>
-                      </div>
-                      <div style={{ paddingLeft: 8, marginTop: 16 }}>
-                        {right && <GridCard r={right} align="right" />}
-                      </div>
-                    </div>
-                  ));
-                })()}
-              </div>
-
-              <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginTop: 16, padding: '0 8px' }}>
-                <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)' }} />
-                <span style={{ fontSize: 9, fontWeight: 700, color: '#525252', textTransform: 'uppercase', letterSpacing: '0.15em', flexShrink: 0 }}>P{results.length}</span>
-                <div style={{ flex: 1, height: 2, background: 'linear-gradient(to right, transparent, rgba(255,255,255,0.1), transparent)' }} />
-              </div>
-            </div>
-
-            {/* Mobile: single column list — all cards equal */}
-            <div className="mobile-only fade-in-up" style={{ flexDirection: 'column' }}>
-              {results.map((r) => {
-                const color = getTeamColor(r.constructorName);
-                const bestQ = r.q3 ?? r.q2 ?? r.q1;
-                return (
-                  <div key={r.driverId} style={{
-                    display: 'flex', alignItems: 'center', gap: 10,
-                    padding: '10px 12px', marginBottom: 6, borderRadius: 12,
-                    background: 'rgba(255,255,255,0.03)', border: '1px solid rgba(255,255,255,0.06)',
-                  }}>
-                    <div style={{
-                      width: 32, height: 32, borderRadius: 8, flexShrink: 0,
-                      display: 'flex', alignItems: 'center', justifyContent: 'center',
-                      background: `${color}18`, border: `1px solid ${color}40`,
-                    }}>
-                      <span style={{ fontSize: 13, fontWeight: 800, color: '#fff', fontVariantNumeric: 'tabular-nums' }}>{r.position}</span>
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <span style={{ fontSize: 13, fontWeight: 700, color: '#fff', display: 'block', overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' }}>
-                        <span style={{ color: '#525252', fontWeight: 600, marginRight: 4 }}>{r.position}.</span>
-                        {r.driverName}
-                      </span>
-                      <span style={{ fontSize: 10, color: '#525252' }}>{r.constructorName}</span>
-                    </div>
-                    {bestQ && (
-                      <span style={{ fontSize: 11, fontWeight: 600, color: '#737373', fontVariantNumeric: 'tabular-nums', flexShrink: 0 }}>{bestQ}</span>
-                    )}
-                  </div>
-                );
-              })}
-            </div>
-          </>
-        )}
-      </div>
-
-      {showDropdown && (
-        <>
-          <div style={{ position: 'fixed', inset: 0, zIndex: 99 }} onClick={() => setShowDropdown(false)} />
-          <div className="slide-down" style={{
-            position: 'fixed', top: dropdownPos.top, left: dropdownPos.left, width: dropdownPos.width,
-            zIndex: 100, maxHeight: 300, overflowY: 'auto',
-            background: 'rgba(17,17,17,0.98)', backdropFilter: 'blur(20px)',
-            border: '1px solid rgba(255,255,255,0.1)', borderRadius: 12, padding: 6,
-            boxShadow: '0 20px 40px rgba(0,0,0,0.5)',
-          }}>
-            {races.map((r) => (
-              <button
-                key={r.round}
-                onClick={() => { setSelectedRound(r.round); setShowDropdown(false); }}
-                style={{
-                  width: '100%', display: 'flex', alignItems: 'center', gap: 10,
-                  padding: '8px 10px', borderRadius: 8, cursor: 'pointer',
-                  background: r.round === selectedRound ? 'rgba(225,6,0,0.1)' : 'transparent',
-                  border: 'none', color: r.round === selectedRound ? '#e10600' : '#d4d4d4',
-                  fontSize: 13, fontWeight: r.round === selectedRound ? 700 : 500,
-                  textAlign: 'left' as const, fontFamily: 'inherit',
-                }}
-              >
-                <span style={{ fontSize: 11, color: '#525252', minWidth: 24 }}>R{r.round}</span>
-                <span style={{ flex: 1 }}>{r.raceName}</span>
-              </button>
-            ))}
-          </div>
-        </>
+    <div
+      className={cn(
+        'group relative flex w-full items-center gap-2.5 overflow-hidden rounded-sm border py-2 pr-3 pl-2.5 transition-colors',
+        pole
+          ? 'border-sodium/45 bg-sodium/8'
+          : 'border-white/8 bg-white/[0.025] hover:border-white/16 hover:bg-white/[0.05]',
+        side === 'left' && 'flex-row text-right',
+        side === 'flat' && 'max-w-md',
       )}
+    >
+      {/* Livery stripe on the outboard edge. */}
+      <span
+        aria-hidden
+        className={cn(
+          'absolute inset-y-0 w-0.5',
+          side === 'right' ? 'right-0' : 'left-0',
+        )}
+        style={{ backgroundColor: color }}
+      />
 
-      <Footer />
-    </PageWrapper>
+      <span
+        className={cn(
+          'num flex size-9 shrink-0 items-center justify-center rounded-xs border font-mono text-[12px] font-bold',
+          pole
+            ? 'border-sodium/45 bg-sodium/12 text-sodium'
+            : 'border-white/10 bg-white/5 text-mist-300',
+        )}
+      >
+        {String(entry.position).padStart(2, '0')}
+      </span>
+
+      <span
+        className={cn(
+          'flex size-8 shrink-0 items-center justify-center rounded-full font-display text-[10px] font-black text-ink-950',
+          side === 'left' && 'order-first',
+        )}
+        style={{ backgroundColor: color }}
+        title={entry.driverName}
+      >
+        {initials(entry.driverName)}
+      </span>
+
+      <span className={cn('min-w-0 flex-1', side === 'left' && 'text-right')}>
+        <span className="block truncate text-[12.5px] font-semibold text-mist-50">
+          {surname(entry.driverName)}
+        </span>
+        <span className="block truncate font-mono text-[9.5px] text-mist-500">
+          {entry.constructorName}
+        </span>
+      </span>
+
+      <span className="shrink-0 text-right">
+        <span className="num block text-[11.5px] font-semibold text-mist-200">
+          {formatLapTime(best)}
+        </span>
+        <span className="num block font-mono text-[9px] text-mist-600">
+          #{entry.driverNumber}
+        </span>
+      </span>
+    </div>
   );
 }
