@@ -16,7 +16,8 @@ import { Panel } from '../components/ui/Panel';
 import { RaceSelect } from '../components/ui/RaceSelect';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { SkeletonRows } from '../components/ui/Skeleton';
-import { Flag, TrackImage } from '../components/ui/Atoms';
+import { Flag } from '../components/ui/Atoms'
+import { TrackMap } from '../components/ui/TrackMap';
 import { cn } from '../lib/cn';
 
 const POLL = 30_000;
@@ -39,8 +40,9 @@ export default function GridLineup() {
   const withQuali = useMemo(() => getRacesWithQualifying(races ?? []), [races]);
 
   useEffect(() => {
-    if (round || withQuali.length === 0) return;
-    setRound(withQuali[withQuali.length - 1].round);
+    const latest = withQuali[withQuali.length - 1];
+    if (round || !latest) return;
+    setRound(latest.round);
   }, [withQuali, round]);
 
   const race = withQuali.find((r) => r.round === round) ?? null;
@@ -91,7 +93,7 @@ export default function GridLineup() {
       {pole && race && (
         <Panel className="notched relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-            <TrackImage circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
+            <TrackMap circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-2 flex items-center gap-2">
                 <span className="accent-bar inline-block h-3 w-1.5" />
@@ -134,11 +136,11 @@ export default function GridLineup() {
           <div className="p-4 sm:p-6">
             {/* ---- Start line ---- */}
             <div className="mb-3 flex items-center gap-3">
-              <span className="h-px flex-1 bg-linear-to-r from-transparent via-white/20 to-transparent" />
+              <span className="h-px flex-1 bg-linear-to-r from-transparent via-line/20 to-transparent" />
               <span className="font-mono text-[9.5px] font-semibold tracking-[0.24em] text-mist-500 uppercase">
                 Start
               </span>
-              <span className="h-px flex-1 bg-linear-to-r from-transparent via-white/20 to-transparent" />
+              <span className="h-px flex-1 bg-linear-to-r from-transparent via-line/20 to-transparent" />
             </div>
 
             {/* ---- Track formation (desktop) ---- */}
@@ -154,7 +156,7 @@ export default function GridLineup() {
                   <div className="relative">
                     <span
                       aria-hidden
-                      className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-white/18 to-transparent"
+                      className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-line/18 to-transparent"
                     />
                     <span className="num absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center font-mono text-[10px] text-mist-600">
                       {left && right ? rowIndex + 1 : ''}
@@ -199,7 +201,7 @@ function Slot({
         'group relative flex w-full items-center gap-2.5 overflow-hidden rounded-sm border py-2 pr-3 pl-2.5 transition-colors',
         pole
           ? 'border-sodium/45 bg-sodium/8'
-          : 'border-white/8 bg-white/[0.025] hover:border-white/16 hover:bg-white/[0.05]',
+          : 'border-line/8 bg-veil/[0.025] hover:border-line/16 hover:bg-veil/[0.05]',
         side === 'left' && 'flex-row text-right',
         side === 'flat' && 'max-w-md',
       )}
@@ -219,7 +221,7 @@ function Slot({
           'num flex size-9 shrink-0 items-center justify-center rounded-xs border font-mono text-[12px] font-bold',
           pole
             ? 'border-sodium/45 bg-sodium/12 text-sodium'
-            : 'border-white/10 bg-white/5 text-mist-300',
+            : 'border-line/10 bg-veil/5 text-mist-300',
         )}
       >
         {String(entry.position).padStart(2, '0')}

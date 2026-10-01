@@ -18,10 +18,6 @@ const RESOURCES = [
 ];
 
 export default function Footer() {
-  const legend = allTeams.filter(
-    (t) => !['rb', 'sauber'].includes(t.id), // aliases of racing_bulls / kick_sauber
-  );
-
   return (
     <footer className="hairline-t mt-16 bg-ink-900/40 sm:mt-24">
       <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
@@ -63,11 +59,11 @@ export default function Footer() {
           <div>
             <p className="eyebrow mb-3">Constructors</p>
             <ul className="flex flex-wrap gap-1.5">
-              {legend.map((team) => (
+              {allTeams.map((team) => (
                 <li key={team.id}>
                   <span
                     title={getTeam(team.fullName).fullName}
-                    className="inline-flex items-center gap-1.5 rounded-xs border border-white/8 bg-white/[0.03] px-1.5 py-1 text-[10.5px] text-mist-400"
+                    className="inline-flex items-center gap-1.5 rounded-xs border border-line/8 bg-veil/[0.03] px-1.5 py-1 text-[10.5px] text-mist-400"
                   >
                     <span
                       aria-hidden

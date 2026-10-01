@@ -3,6 +3,24 @@
   "plugins": ["react", "typescript", "oxc"],
   "rules": {
     "react/rules-of-hooks": "error",
-    "react/only-export-components": ["warn", { "allowConstantExport": true }]
+    "react/only-export-components": [
+      "warn",
+      {
+        "allowConstantExport": true,
+        "allowExportNames": [
+          "useTheme",
+          "useTimeZone",
+          "useSession",
+          "useNotifications",
+          "sessionTimeRange",
+          "classifyStatus",
+          "isValidTimeZone",
+          "TIME_ZONE_MODE_LABEL",
+          "TIME_ZONE_MODE_HINT",
+          "COMMON_TIME_ZONES",
+          "THEME_BOOTSTRAP"
+        ]
+      }
+    ]
   }
 }

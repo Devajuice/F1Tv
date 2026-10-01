@@ -118,7 +118,7 @@ export default function Highlights() {
                 href={CHANNEL_URL}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex h-8 items-center gap-1.5 rounded-xs border border-white/12 bg-white/5 px-3 text-[10px] font-semibold tracking-[0.08em] text-mist-100 uppercase transition-colors hover:border-white/25 hover:bg-white/10"
+                className="inline-flex h-8 items-center gap-1.5 rounded-xs border border-line/12 bg-veil/5 px-3 text-[10px] font-semibold tracking-[0.08em] text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-veil/10"
               >
                 Open the F1 YouTube channel
                 <ExternalLink size={11} />
@@ -164,7 +164,7 @@ function Feature({ video }: { video: YoutubeVideo }) {
       href={`https://www.youtube.com/watch?v=${video.id}`}
       target="_blank"
       rel="noreferrer noopener"
-      className="group relative block overflow-hidden rounded-md border border-white/10 bg-ink-900"
+      className="group relative block overflow-hidden rounded-md border border-line/10 bg-ink-900"
     >
       <div className="relative aspect-[21/9] w-full overflow-hidden">
         {video.thumbnail ? (
@@ -211,7 +211,7 @@ function Card({ video }: { video: YoutubeVideo }) {
       rel="noreferrer noopener"
       className="group block"
     >
-      <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-white/8 bg-ink-900">
+      <div className="relative aspect-video w-full overflow-hidden rounded-sm border border-line/8 bg-ink-900">
         {video.thumbnail ? (
           <img
             src={video.thumbnail}

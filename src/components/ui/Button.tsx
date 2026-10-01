@@ -12,9 +12,9 @@ const VARIANTS: Record<ButtonVariant, string> = {
   primary:
     'bg-linear-to-br from-f1-red to-f1-red-deep text-white shadow-red hover:from-f1-red-bright hover:to-f1-red hover:-translate-y-0.5 active:translate-y-0',
   secondary:
-    'border border-white/12 bg-white/5 text-mist-100 backdrop-blur-md hover:border-white/25 hover:bg-white/9 hover:-translate-y-0.5 active:translate-y-0',
+    'border border-line/12 bg-veil/5 text-mist-100 backdrop-blur-md hover:border-line/25 hover:bg-veil/9 hover:-translate-y-0.5 active:translate-y-0',
   ghost:
-    'text-mist-300 hover:bg-white/6 hover:text-mist-50 active:bg-white/10',
+    'text-mist-300 hover:bg-veil/6 hover:text-mist-50 active:bg-veil/10',
   live:
     'bg-live text-white shadow-[0_8px_32px_-10px_rgb(255_59_48/0.6)] hover:brightness-110 hover:-translate-y-0.5 active:translate-y-0',
 };
@@ -50,7 +50,7 @@ export function Button({
       {/* Sheen sweep on hover — the only decorative layer. */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/18 to-transparent transition-transform duration-700 ease-swift group-hover:translate-x-full peer-hover:translate-x-full"
+        className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-line/18 to-transparent transition-transform duration-700 ease-swift group-hover:translate-x-full peer-hover:translate-x-full"
       />
       <span className="relative inline-flex items-center gap-2">{children}</span>
     </button>
@@ -73,7 +73,7 @@ export function ButtonLink({
     >
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-white/18 to-transparent transition-transform duration-700 ease-swift group-hover:translate-x-full"
+        className="pointer-events-none absolute inset-0 -translate-x-full bg-linear-to-r from-transparent via-line/18 to-transparent transition-transform duration-700 ease-swift group-hover:translate-x-full"
       />
       <span className="relative inline-flex items-center gap-2">{children}</span>
     </Link>

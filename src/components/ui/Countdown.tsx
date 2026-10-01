@@ -52,7 +52,7 @@ export function Countdown({
         <div
           key={unit}
           className={cn(
-            'flex min-w-9 flex-col items-center justify-center rounded-xs border border-white/8 bg-white/[0.045] px-1.5 py-1.5',
+            'flex min-w-9 flex-col items-center justify-center rounded-xs border border-line/8 bg-veil/[0.045] px-1.5 py-1.5',
             compact && 'min-w-8 py-1',
           )}
         >

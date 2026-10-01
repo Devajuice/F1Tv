@@ -1,5 +1,5 @@
 <!doctype html>
-<html lang="en" class="dark">
+<html lang="en" data-theme="dark">
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
@@ -9,7 +9,8 @@
       name="description"
       content="Watch Formula 1 live, follow real-time session countdowns, live track weather, race results, qualifying, the starting grid, championship standings and highlights."
     />
-    <meta name="theme-color" content="#07080a" />
+    <!-- Both are rewritten by the provider when the theme changes. -->
+    <meta name="theme-color" content="#07080a" data-theme-color />
     <meta name="color-scheme" content="dark" />
     <link rel="manifest" href="/site.webmanifest" />
 
@@ -29,6 +30,27 @@
     />
     <meta property="og:image" content="/android-chrome-512x512.png" />
     <meta name="twitter:card" content="summary" />
+
+    <!-- Theme: applied before first paint so a light-theme reload never shows
+         a dark flash. Must stay inline and blocking — a module or deferred
+         script runs too late. Kept in sync with THEME_BOOTSTRAP in
+         src/context/ThemeContext.tsx. -->
+    <script>
+      (function () {
+        try {
+          var p = localStorage.getItem('f1tv:theme');
+          if (p !== 'light' && p !== 'dark') {
+            p = window.matchMedia('(prefers-color-scheme: light)').matches
+              ? 'light'
+              : 'dark';
+          }
+          document.documentElement.dataset.theme = p;
+          document.documentElement.style.colorScheme = p;
+        } catch (e) {
+          document.documentElement.dataset.theme = 'dark';
+        }
+      })();
+    </script>
 
     <!-- Fonts: Geist (UI), Geist Mono (numerics), Archivo (display wordmark) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
@@ -51,7 +73,7 @@
   <body>
     <div id="root"></div>
     <noscript>
-      <div style="padding: 2rem; font-family: system-ui, sans-serif; color: #e8ecf1">
+      <div style="padding: 2rem; font-family: system-ui, sans-serif; color: #e8ecf1; background: #07080a">
         <h1>F1TV</h1>
         <p>This site needs JavaScript enabled.</p>
       </div>

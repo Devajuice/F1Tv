@@ -12,9 +12,11 @@ import {
   relativeDayLabel,
 } from '../lib/format';
 import { getRaceStart, getRaceStatus } from '../lib/races';
+import { useTimeZone } from '../context/TimeZoneContext';
 import { Button } from '../components/ui/Button';
 import { Badge, LiveDot } from '../components/ui/Badge';
-import { Flag, TrackImage } from '../components/ui/Atoms';
+import { Flag } from '../components/ui/Atoms';
+import { TrackMap } from '../components/ui/TrackMap';
 import { CountdownStat } from '../components/ui/Countdown';
 import { PageContainer, PageHeader } from '../components/ui/PageHeader';
 import { Panel } from '../components/ui/Panel';
@@ -37,6 +39,7 @@ export default function RaceCalendar() {
   const [expanded, setExpanded] = useState<string | null>(null);
 
   const { data: races, loading, error, refresh } = useAsync(() => getSchedule(), []);
+  useTimeZone();
 
   const now = Date.now();
   const nextRace = useMemo(
@@ -85,7 +88,7 @@ export default function RaceCalendar() {
         <Panel className="notched relative mb-4 overflow-hidden">
           <div aria-hidden className="speedlines pointer-events-none absolute inset-0 opacity-40" />
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
-            <TrackImage circuit={nextRace.locality} round={nextRace.round} className="size-20 sm:size-24" />
+            <TrackMap circuit={nextRace.locality} round={nextRace.round} className="size-20 sm:size-24" />
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-2 flex items-center gap-2">
                 <span className="accent-bar inline-block h-3 w-1.5" />
@@ -159,6 +162,7 @@ export default function RaceCalendar() {
                   setExpanded((e) => (e === race.round ? null : race.round))
                 }
                 now={now}
+                totalRounds={counts.all}
               />
             ))}
           </ul>
@@ -174,32 +178,38 @@ function RaceRow({
   expanded,
   onToggle,
   now,
+  totalRounds,
 }: {
   race: Race;
   isNext: boolean;
   expanded: boolean;
   onToggle: () => void;
   now: number;
+  /** Rounds in the season, so the row can say "3 of 24". */
+  totalRounds: number;
 }) {
   const status = getRaceStatus(race, now);
   const start = getRaceStart(race);
+  const zone = useTimeZone();
+  // Circuit-local when the viewer asked for it, otherwise the ambient default.
+  const tz = { timeZone: zone.resolve(race.locality) };
 
   return (
-    <li className="border-b border-white/[0.05] last:border-0">
+    <li className="border-b border-line/[0.05] last:border-0">
       <button
         type="button"
         onClick={onToggle}
         aria-expanded={expanded}
         className={cn(
           'group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors sm:gap-4 sm:px-6',
-          expanded ? 'bg-white/[0.03]' : 'hover:bg-white/[0.025]',
+          expanded ? 'bg-veil/[0.03]' : 'hover:bg-veil/[0.025]',
         )}
       >
         <span className="num w-7 shrink-0 text-[13px] font-bold text-mist-500 transition-colors group-hover:text-mist-300">
           {String(Number(race.round)).padStart(2, '0')}
         </span>
 
-        <TrackImage circuit={race.locality} round={race.round} className="size-11 shrink-0" />
+        <TrackMap circuit={race.locality} round={race.round} className="size-11 shrink-0" />
 
         <span className="min-w-0 flex-1">
           <span className="flex items-center gap-2">
@@ -212,14 +222,15 @@ function RaceRow({
             <span className="truncate">{race.circuitName}</span>
             <span className="text-mist-600">·</span>
             <span className="whitespace-nowrap">
-              {formatDate(start ?? race.date)} · {formatTimeZoned(start).split(' ')[0]}
+              {formatDate(start ?? race.date, tz)} ·{' '}
+              {formatTimeZoned(start, tz).split(' ')[0]}
             </span>
           </span>
         </span>
 
         <span className="hidden w-24 shrink-0 text-right sm:block">
           <span className="block font-mono text-[10.5px] text-mist-400">
-            {relativeDayLabel(start ?? race.date, now)}
+            {relativeDayLabel(start ?? race.date, now, tz)}
           </span>
         </span>
 
@@ -250,7 +261,7 @@ function RaceRow({
 
       {expanded && (
         <div className="animate-slide-down grid gap-5 bg-ink-900/40 px-4 py-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-6 sm:px-6">
-          <TrackImage
+          <TrackMap
             circuit={race.locality}
             round={race.round}
             className="hidden size-28 sm:block"
@@ -279,9 +290,15 @@ function RaceRow({
               <div>
                 <dt className="eyebrow mb-1.5">Qualifying</dt>
                 <dd className="text-mist-200">
-                  {formatDate(joinDateTime(race.qualifyingDate, race.qualifyingTime))}
+                  {formatDate(
+                    joinDateTime(race.qualifyingDate, race.qualifyingTime),
+                    tz,
+                  )}
                   <span className="mt-0.5 block font-mono text-[11px] text-mist-400">
-                    {formatTimeZoned(joinDateTime(race.qualifyingDate, race.qualifyingTime))}
+                    {formatTimeZoned(
+                      joinDateTime(race.qualifyingDate, race.qualifyingTime),
+                      tz,
+                    )}
                   </span>
                 </dd>
               </div>
@@ -289,7 +306,7 @@ function RaceRow({
             <div>
               <dt className="eyebrow mb-1.5">Round</dt>
               <dd className="text-mist-200">
-                {Number(race.round)} of {new Date().getFullYear()}
+                {Number(race.round)} of {totalRounds}
               </dd>
             </div>
           </dl>
@@ -302,7 +319,7 @@ function RaceRow({
             {status === 'completed' && (
               <Link
                 to={`/results?round=${race.round}`}
-                className="inline-flex h-8 items-center gap-2 rounded-sm border border-white/12 bg-white/5 px-3 text-[10px] font-semibold tracking-[0.08em] whitespace-nowrap text-mist-100 uppercase transition-colors hover:border-white/25 hover:bg-white/9"
+                className="inline-flex h-8 items-center gap-2 rounded-sm border border-line/12 bg-veil/5 px-3 text-[10px] font-semibold tracking-[0.08em] whitespace-nowrap text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-veil/9"
               >
                 Result
               </Link>

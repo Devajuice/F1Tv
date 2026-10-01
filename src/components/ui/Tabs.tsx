@@ -51,7 +51,9 @@ export function Tabs<T extends string>({
     else if (event.key === 'End') next = items.length - 1;
     else return;
     event.preventDefault();
-    onChange(items[next].value);
+    const target = items[next];
+    if (!target) return;
+    onChange(target.value);
     // Move DOM focus with selection for keyboard users.
     listRef.current
       ?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
@@ -87,8 +89,8 @@ export function Tabs<T extends string>({
                 ? 'px-2.5 py-1.5 text-[10px]'
                 : 'px-3.5 py-2 text-[11px]',
               active
-                ? 'bg-white/8 text-mist-50'
-                : 'text-mist-400 hover:bg-white/4 hover:text-mist-200',
+                ? 'bg-veil/8 text-mist-50'
+                : 'text-mist-400 hover:bg-veil/4 hover:text-mist-200',
             )}
           >
             <span className="flex items-center gap-1.5">

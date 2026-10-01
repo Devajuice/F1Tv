@@ -41,7 +41,8 @@ import { ButtonLink } from '../components/ui/Button';
 import { Panel, PanelTitle } from '../components/ui/Panel';
 import { LiveDot, TeamDot } from '../components/ui/Badge';
 import { Countdown, CountdownStat } from '../components/ui/Countdown';
-import { DriverAvatar, Flag, Meter, Stat, TrackImage } from '../components/ui/Atoms';
+import { DriverAvatar, Flag, Meter, Stat } from '../components/ui/Atoms';
+import { TrackMap } from '../components/ui/TrackMap';
 import { Skeleton, SkeletonRows } from '../components/ui/Skeleton';
 import { Tabs } from '../components/ui/Tabs';
 import { EmptyState } from '../components/ui/States';
@@ -111,7 +112,7 @@ export default function Home() {
 
       <section className="mt-4">
         <Panel flush className="overflow-hidden">
-          <div className="flex items-center justify-between gap-4 border-b border-white/[0.06] px-5 py-4 sm:px-6">
+          <div className="flex items-center justify-between gap-4 border-b border-line/[0.06] px-5 py-4 sm:px-6">
             <PanelTitle eyebrow="Season" title="Next up" />
             <Link
               to="/calendar"
@@ -128,7 +129,7 @@ export default function Home() {
               description="No more rounds on the calendar for this season."
             />
           ) : (
-            <div className="grid divide-y divide-white/[0.05] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="grid divide-y divide-line/[0.05] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
               {nextRaces.map((race, index) => (
                 <RaceCard key={race.round} race={race} first={index === 0} />
               ))}
@@ -166,7 +167,7 @@ function Hero({
       className={`notched relative overflow-hidden rounded-lg border transition-colors duration-500 ${
         isLive
           ? 'border-live/40 bg-linear-to-br from-live/12 via-ink-850 to-ink-850'
-          : 'border-white/8 bg-linear-to-br from-f1-red/8 via-ink-850 to-ink-850'
+          : 'border-line/8 bg-linear-to-br from-f1-red/8 via-ink-850 to-ink-850'
       }`}
     >
       {/* Speed-line texture + corner bloom. */}
@@ -257,7 +258,7 @@ function Hero({
                 </p>
               </div>
             ) : current && meta ? (
-              <div className="rounded-md border border-white/10 bg-white/[0.04] px-5 py-4 lg:text-right">
+              <div className="rounded-md border border-line/10 bg-veil/[0.04] px-5 py-4 lg:text-right">
                 <p className="eyebrow mb-3 lg:justify-end">{meta.label} starts in</p>
                 <Countdown target={target} />
               </div>
@@ -266,7 +267,7 @@ function Hero({
         </div>
 
         {/* Weather strip */}
-        <div className="mt-8 border-t border-white/[0.07] pt-5">
+        <div className="mt-8 border-t border-line/[0.07] pt-5">
           {!weather ? (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
               {[0, 1, 2, 3].map((i) => (
@@ -309,7 +310,7 @@ function Hero({
                     ? 'border-telemetry/40 bg-telemetry/12 text-telemetry'
                     : trackState === false
                       ? 'border-sodium/40 bg-sodium/12 text-sodium'
-                      : 'border-white/12 bg-white/5 text-mist-400'
+                      : 'border-line/12 bg-veil/5 text-mist-400'
                 }`}
               >
                 <CloudRain size={10} />
@@ -365,7 +366,7 @@ function Championship({
 
   return (
     <Panel flush>
-      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-white/[0.06] px-5 py-4 sm:px-6">
+      <div className="flex flex-wrap items-center justify-between gap-3 border-b border-line/[0.06] px-5 py-4 sm:px-6">
         <PanelTitle eyebrow="Championship" title="Standings" />
         <Tabs
           items={[
@@ -412,7 +413,7 @@ function DriverStandingsList({ rows }: { rows: DriverStanding[] }) {
           <li key={row.driverId}>
             <Link
               to="/standings"
-              className="group flex items-center gap-3 rounded-sm px-2 py-2 transition-colors hover:bg-white/[0.04]"
+              className="group flex items-center gap-3 rounded-sm px-2 py-2 transition-colors hover:bg-veil/[0.04]"
             >
               <span
                 className={`num w-6 shrink-0 text-[13px] font-bold ${
@@ -424,7 +425,7 @@ function DriverStandingsList({ rows }: { rows: DriverStanding[] }) {
               <DriverAvatar number={row.driverNumber} name={row.driverName} color={color} size="sm" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-2">
-                  <span className="truncate text-[13px] font-semibold text-mist-50 group-hover:text-white">
+                  <span className="truncate text-[13px] font-semibold text-mist-50 group-hover:text-f1-red-bright">
                     {surname(row.driverName)}
                   </span>
                   <TeamDot color={color} />
@@ -531,7 +532,7 @@ function SessionQueue({
 
   return (
     <Panel flush>
-      <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+      <div className="border-b border-line/[0.06] px-5 py-4 sm:px-6">
         <PanelTitle eyebrow="Circuit activity" title="What's on" />
       </div>
 
@@ -554,7 +555,7 @@ function SessionQueue({
                   className={`flex items-center gap-3 rounded-sm border px-3 py-2.5 transition-colors ${
                     item.state === 'live'
                       ? 'border-live/30 bg-live/8'
-                      : 'border-transparent hover:border-white/8 hover:bg-white/[0.03]'
+                      : 'border-transparent hover:border-line/8 hover:bg-veil/[0.03]'
                   }`}
                 >
                   <span
@@ -617,7 +618,7 @@ function RaceCard({
   return (
     <Link
       to="/calendar"
-      className="group relative flex flex-col gap-4 p-5 transition-colors hover:bg-white/[0.03] sm:p-6"
+      className="group relative flex flex-col gap-4 p-5 transition-colors hover:bg-veil/[0.03] sm:p-6"
     >
       {first && (
         <span className="absolute top-0 left-0 h-full w-0.5 bg-linear-to-b from-f1-red to-f1-red/0" />
@@ -630,15 +631,15 @@ function RaceCard({
             Round {Number(race.round)}
             {first && <span className="text-f1-red">· Next</span>}
           </p>
-          <h3 className="truncate text-[15px] font-semibold text-mist-50 group-hover:text-white">
+          <h3 className="truncate text-[15px] font-semibold text-mist-50 group-hover:text-f1-red-bright">
             {race.raceName}
           </h3>
           <p className="mt-1 truncate text-[11.5px] text-mist-500">{race.circuitName}</p>
         </div>
-        <TrackImage circuit={race.locality} round={race.round} className="size-14" />
+        <TrackMap circuit={race.locality} round={race.round} className="size-14" />
       </div>
 
-      <div className="mt-auto flex items-end justify-between gap-3 border-t border-white/[0.06] pt-3.5">
+      <div className="mt-auto flex items-end justify-between gap-3 border-t border-line/[0.06] pt-3.5">
         <div className="min-w-0">
           <p className="truncate font-mono text-[11px] text-mist-300">
             {formatShortDate(start)} · {formatTimeZoned(start)}

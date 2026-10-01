@@ -19,7 +19,8 @@ import { PageContainer, PageHeader } from '../components/ui/PageHeader';
 import { Panel } from '../components/ui/Panel';
 import { RaceSelect } from '../components/ui/RaceSelect';
 import { LiveDot } from '../components/ui/Badge';
-import { Flag, TrackImage } from '../components/ui/Atoms';
+import { Flag } from '../components/ui/Atoms'
+import { TrackMap } from '../components/ui/TrackMap';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
@@ -41,8 +42,9 @@ export default function PracticeSchedule() {
   const upcoming = useMemo(() => getUpcomingRaces(races ?? []), [races]);
 
   useEffect(() => {
-    if (round || upcoming.length === 0) return;
-    setRound(upcoming[0].round);
+    const first = upcoming[0];
+    if (round || !first) return;
+    setRound(first.round);
   }, [upcoming, round]);
 
   const race = upcoming.find((r) => r.round === round) ?? null;
@@ -91,7 +93,7 @@ export default function PracticeSchedule() {
       {race && (
         <Panel className="notched relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-            <TrackImage circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
+            <TrackMap circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-2 flex items-center gap-2">
                 <span className="accent-bar inline-block h-3 w-1.5" />
@@ -135,7 +137,7 @@ export default function PracticeSchedule() {
             description="Practice, qualifying and race times are published closer to the weekend."
           />
         ) : (
-          <ul className="divide-y divide-white/[0.05]">
+          <ul className="divide-y divide-line/[0.05]">
             {rows.map((session) => {
               const start = joinDateTime(session.date, session.time);
               const meta = getSessionMeta(session.name);
@@ -151,7 +153,7 @@ export default function PracticeSchedule() {
                       ? 'bg-live/8'
                       : isPast
                         ? 'opacity-45'
-                        : 'hover:bg-white/[0.025]',
+                        : 'hover:bg-veil/[0.025]',
                   )}
                 >
                   <span
@@ -199,7 +201,7 @@ export default function PracticeSchedule() {
               'flex size-10 shrink-0 items-center justify-center rounded-full border',
               notifications.enabled
                 ? 'border-turf/35 bg-turf/10 text-turf'
-                : 'border-white/10 bg-white/[0.04] text-mist-400',
+                : 'border-line/10 bg-veil/[0.04] text-mist-400',
             )}
           >
             <Bell size={16} />

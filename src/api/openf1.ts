@@ -256,7 +256,13 @@ async function loadWeather(
       writeMemory(key, null);
       return null;
     }
-    const weather = toWeather(data[data.length - 1]);
+    // Latest sample; the array length was checked above.
+    const latest = data[data.length - 1];
+    if (!latest) {
+      writeMemory(key, null);
+      return null;
+    }
+    const weather = toWeather(latest);
     writeMemory(key, weather);
     writeLocal(key, weather);
     return weather;
@@ -347,8 +353,13 @@ function buildWeekend(race: SynthRace, year: number): F1Session[] {
     date_end: plusHours(start, hours),
   });
 
-  const raceTime = race.time?.replace(/Z$/i, '') ?? '14:00:00';
-  const [rh, rm] = raceTime.split(':').map(Number);
+  // Ergast returns times like "15:10:00Z" or "15:10:00", and occasionally an
+  // empty string. Fall back to a plausible 14:00 rather than NaN, which would
+  // serialise into an invalid date and break the countdown.
+  const raceTime = race.time?.replace(/Z$/i, '') || '14:00:00';
+  const [rawHour = '', rawMinute = ''] = raceTime.split(':');
+  const rh = Number.parseInt(rawHour, 10);
+  const rm = Number.parseInt(rawMinute, 10);
   const raceStart = at(raceDate, Number.isFinite(rh) ? rh : 14, Number.isFinite(rm) ? rm : 0);
 
   return [

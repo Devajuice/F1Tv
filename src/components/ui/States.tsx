@@ -24,7 +24,7 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="mb-4 flex size-11 items-center justify-center rounded-full border border-white/10 bg-white/[0.04] text-mist-400">
+      <div className="mb-4 flex size-11 items-center justify-center rounded-full border border-line/10 bg-veil/[0.04] text-mist-400">
         {icon ?? <Inbox size={18} />}
       </div>
       <h3 className="text-[14px] font-semibold text-mist-100">{title}</h3>
@@ -95,7 +95,7 @@ export function RefreshHint({
         type="button"
         onClick={onRefresh}
         aria-label="Refresh"
-        className="rounded-sm p-1 text-mist-500 transition-colors hover:bg-white/6 hover:text-mist-200 disabled:opacity-40"
+        className="rounded-sm p-1 text-mist-500 transition-colors hover:bg-veil/6 hover:text-mist-200 disabled:opacity-40"
         disabled={busy}
       >
         <RotateCw size={12} className={cn(busy && 'animate-spin')} />

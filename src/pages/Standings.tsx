@@ -145,7 +145,7 @@ export default function Standings() {
                     </p>
                   </div>
                 </div>
-                <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line/[0.06] pt-3">
                   <span className="font-mono text-[10px] text-mist-500">
                     {row.wins} {Number(row.wins) === 1 ? 'win' : 'wins'}
                   </span>
@@ -163,7 +163,7 @@ export default function Standings() {
 
       {/* ---- Full table ---- */}
       <Panel flush>
-        <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+        <div className="border-b border-line/[0.06] px-5 py-4 sm:px-6">
           {active.error ? (
             <ErrorState
               message={active.error.message}
@@ -338,12 +338,11 @@ function RoundPicker({
 }
 
 function TeamLegend() {
-  const teams = allTeams.filter((t) => !['rb', 'sauber'].includes(t.id));
   return (
     <Panel className="mt-4">
       <p className="eyebrow mb-3.5">Team colours</p>
       <ul className="flex flex-wrap gap-x-5 gap-y-2.5">
-        {teams.map((team) => {
+        {allTeams.map((team) => {
           const resolved = getTeam(team.id);
           return (
             <li

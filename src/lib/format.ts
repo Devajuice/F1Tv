@@ -5,72 +5,157 @@
  * RaceCalendar, flags in RaceCalendar + Drivers, `timeAgo` in News, age
  * calculation in Drivers). They all live here now, backed by cached
  * `Intl` formatters so repeated calls stay cheap.
+ *
+ * Time-zone handling: the formatters are built per zone rather than once at
+ * module load, because the viewer's preferred zone can change at runtime.
+ * `setDisplayTimeZone` sets the default for callers with no circuit in hand;
+ * the zone-aware helpers take an explicit `timeZone` and bypass it. The zone
+ * cache is keyed by zone, so switching back to a previously used zone costs
+ * nothing.
  */
 
-const WEEKDAY = new Intl.DateTimeFormat(undefined, { weekday: 'short' });
-const DAY_MONTH = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-});
-const DAY_MONTH_YEAR = new Intl.DateTimeFormat(undefined, {
-  day: 'numeric',
-  month: 'short',
-  year: 'numeric',
-});
-const FULL_DATE = new Intl.DateTimeFormat(undefined, {
-  weekday: 'long',
-  day: 'numeric',
-  month: 'long',
-});
-const TIME_24 = new Intl.DateTimeFormat(undefined, {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-});
-const TIME_ZONED = new Intl.DateTimeFormat(undefined, {
-  hour: '2-digit',
-  minute: '2-digit',
-  hour12: false,
-  timeZoneName: 'short',
-});
+/** The zone used when a caller does not name one. Null means "browser zone". */
+let displayTimeZone: string | null = null;
+
+/**
+ * Set the default display zone. Called by `TimeZoneProvider`; pass null to go
+ * back to following the browser.
+ */
+export function setDisplayTimeZone(zone: string | null): void {
+  displayTimeZone = zone;
+}
+
+/** The zone currently in effect for callers that do not pass one. */
+export function getDisplayTimeZone(): string | null {
+  return displayTimeZone;
+}
+
+type ZoneOptions = { timeZone?: string | null };
+
+/** key -> formatter. Bounded because it is keyed by zone, and zones are few. */
+const FORMATTER_CACHE = new Map<string, Intl.DateTimeFormat>();
+
+/**
+ * Build a formatter, memoised per zone so switching is cheap.
+ *
+ * The `T extends Intl.DateTimeFormat` bound matters: without it `T` is inferred
+ * as `unknown` from `fallback`, which then makes the cache write a type error.
+ */
+function cached<T extends Intl.DateTimeFormat>(
+  key: string,
+  zone: string | null,
+  build: (options: Intl.DateTimeFormatOptions) => Intl.DateTimeFormat,
+  fallback: () => T,
+): T {
+  const cacheKey = `${key}@${zone ?? 'default'}`;
+  const hit = FORMATTER_CACHE.get(cacheKey);
+  if (hit) return hit as T;
+
+  let value: Intl.DateTimeFormat;
+  if (zone) {
+    try {
+      value = build({ timeZone: zone });
+    } catch {
+      // Unknown zone (an old stored value, a renamed IANA id): fall back to
+      // the browser zone rather than throwing mid-render.
+      value = fallback();
+    }
+  } else {
+    value = build({});
+  }
+
+  FORMATTER_CACHE.set(cacheKey, value);
+  return value as T;
+}
+
+/** Merges the explicit zone over the ambient one. */
+function zoneOf(options?: ZoneOptions): string | null {
+  return options?.timeZone ?? displayTimeZone;
+}
+
+function weekday(zone: string | null) {
+  return cached('weekday', zone, (o) => new Intl.DateTimeFormat(undefined, { ...o, weekday: 'short' }), () =>
+    new Intl.DateTimeFormat(undefined, { weekday: 'short' }),
+  );
+}
+function dayMonth(zone: string | null) {
+  return cached('dayMonth', zone, (o) => new Intl.DateTimeFormat(undefined, { ...o, day: 'numeric', month: 'short' }), () =>
+    new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short' }),
+  );
+}
+function dayMonthYear(zone: string | null) {
+  return cached('dayMonthYear', zone, (o) => new Intl.DateTimeFormat(undefined, { ...o, day: 'numeric', month: 'short', year: 'numeric' }), () =>
+    new Intl.DateTimeFormat(undefined, { day: 'numeric', month: 'short', year: 'numeric' }),
+  );
+}
+function fullDate(zone: string | null) {
+  return cached('fullDate', zone, (o) => new Intl.DateTimeFormat(undefined, { ...o, weekday: 'long', day: 'numeric', month: 'long' }), () =>
+    new Intl.DateTimeFormat(undefined, { weekday: 'long', day: 'numeric', month: 'long' }),
+  );
+}
+function time24(zone: string | null) {
+  return cached('time24', zone, (o) => new Intl.DateTimeFormat(undefined, { ...o, hour: '2-digit', minute: '2-digit', hour12: false }), () =>
+    new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hour12: false }),
+  );
+}
+function timeZoned(zone: string | null) {
+  return cached('timeZoned', zone, (o) => new Intl.DateTimeFormat(undefined, { ...o, hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short' }), () =>
+    new Intl.DateTimeFormat(undefined, { hour: '2-digit', minute: '2-digit', hour12: false, timeZoneName: 'short' }),
+  );
+}
+/** Just the zone's short name, e.g. "GMT+5:30". */
+function zoneName(zone: string | null) {
+  return cached('zoneName', zone, (o) => new Intl.DateTimeFormat('en', { ...o, timeZoneName: 'short', hour: 'numeric' }), () =>
+    new Intl.DateTimeFormat('en', { timeZoneName: 'short', hour: 'numeric' }),
+  );
+}
+
 export function toDate(input: string | number | Date): Date | null {
   const d = input instanceof Date ? input : new Date(input);
   return Number.isNaN(d.getTime()) ? null : d;
 }
 
 /** "Sun 16 Mar" */
-export function formatShortDate(input: string | Date | null): string {
+export function formatShortDate(input: string | Date | null, options?: ZoneOptions): string {
   const d = input ? toDate(input) : null;
   if (!d) return 'TBA';
-  return `${WEEKDAY.format(d)} ${DAY_MONTH.format(d)}`;
+  const zone = zoneOf(options);
+  return `${weekday(zone).format(d)} ${dayMonth(zone).format(d)}`;
 }
 
 /** "16 Mar 2025" */
-export function formatDate(input: string | Date | null): string {
+export function formatDate(input: string | Date | null, options?: ZoneOptions): string {
   const d = input ? toDate(input) : null;
   if (!d) return 'TBA';
-  return DAY_MONTH_YEAR.format(d);
+  return dayMonthYear(zoneOf(options)).format(d);
 }
 
 /** "Sunday, 16 March" */
-export function formatLongDate(input: string | Date | null): string {
+export function formatLongDate(input: string | Date | null, options?: ZoneOptions): string {
   const d = input ? toDate(input) : null;
   if (!d) return 'To be confirmed';
-  return FULL_DATE.format(d);
+  return fullDate(zoneOf(options)).format(d);
 }
 
 /** "15:00 GMT+5:30" — falls back to "TBA" for missing times. */
-export function formatTimeZoned(input: string | Date | null): string {
+export function formatTimeZoned(input: string | Date | null, options?: ZoneOptions): string {
   const d = input ? toDate(input) : null;
   if (!d) return 'TBA';
-  return TIME_ZONED.format(d);
+  return timeZoned(zoneOf(options)).format(d);
 }
 
 /** "15:00" */
-export function formatTime(input: string | Date | null): string {
+export function formatTime(input: string | Date | null, options?: ZoneOptions): string {
   const d = input ? toDate(input) : null;
   if (!d) return 'TBA';
-  return TIME_24.format(d);
+  return time24(zoneOf(options)).format(d);
+}
+
+/**
+ * "GMT+5:30" for a zone on its own, for labelling which zone is in use.
+ */
+export function formatZoneName(zone: string | null): string {
+  return zoneName(zone).formatToParts(new Date()).find((p) => p.type === 'timeZoneName')?.value ?? '';
 }
 
 /**
@@ -122,25 +207,64 @@ export function getCountdownParts(target: string | Date | null, now = Date.now()
   };
 }
 
-/** Whole days between now and a future instant. 0 for today, 1 for tomorrow. */
-export function daysUntil(input: string | Date | null | undefined, now = Date.now()): number {
+/** Calendar-day key for an instant, in the given zone. */
+function dayKey(date: Date, zone: string | null): string {
+  const parts = cached(
+    'dayKey',
+    zone,
+    (o) =>
+      new Intl.DateTimeFormat('en-CA', {
+        ...o,
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }),
+    () =>
+      new Intl.DateTimeFormat('en-CA', {
+        year: 'numeric',
+        month: '2-digit',
+        day: '2-digit',
+      }),
+  ).formatToParts(date);
+  const get = (type: Intl.DateTimeFormatPartTypes) =>
+    parts.find((p) => p.type === type)?.value ?? '';
+  return `${get('year')}-${get('month')}-${get('day')}`;
+}
+
+/** Days from one calendar date to another, counted in the given zone. */
+function daysBetweenKeys(from: string, to: string): number {
+  const MS = 86_400_000;
+  return Math.round(
+    (Date.parse(`${to}T00:00:00Z`) - Date.parse(`${from}T00:00:00Z`)) / MS,
+  );
+}
+
+/**
+ * Whole calendar days from now to an instant. 0 today, 1 tomorrow.
+ *
+ * Measured on calendar dates rather than elapsed milliseconds, so "tomorrow"
+ * means tomorrow where the reader is (or where the circuit is) — not 24 hours
+ * away, which lands on the wrong label for every race that is not at midnight.
+ */
+export function daysUntil(
+  input: string | Date | null | undefined,
+  now = Date.now(),
+  options?: ZoneOptions,
+): number {
   const d = input ? toDate(input) : null;
   if (!d) return 0;
-  const startOf = (t: number) => {
-    const x = new Date(t);
-    x.setHours(0, 0, 0, 0);
-    return x.getTime();
-  };
-  return Math.round((startOf(d.getTime()) - startOf(now)) / 86_400_000);
+  const zone = zoneOf(options);
+  return daysBetweenKeys(dayKey(new Date(now), zone), dayKey(d, zone));
 }
 
 /** "Today" / "Tomorrow" / "In 4 days" / "3 days ago" / "TBA" */
 export function relativeDayLabel(
   input: string | Date | null | undefined,
   now = Date.now(),
+  options?: ZoneOptions,
 ): string {
   if (!input) return 'TBA';
-  const delta = daysUntil(input, now);
+  const delta = daysUntil(input, now, options);
   if (delta === 0) return 'Today';
   if (delta === 1) return 'Tomorrow';
   if (delta === -1) return 'Yesterday';
@@ -161,7 +285,7 @@ export function timeAgo(input: string | Date | null, now = Date.now()): string {
   if (hours < 24) return `${hours}h ago`;
   const days = Math.floor(hours / 24);
   if (days < 7) return `${days}d ago`;
-  return DAY_MONTH.format(d);
+  return dayMonth(displayTimeZone).format(d);
 }
 
 /** Integer with thousands separators, safe for API strings. */
@@ -201,7 +325,7 @@ export function parseViewCount(value: string | number): number {
   if (typeof value === 'number') return value;
   const match = value.replace(/,/g, '').match(/([\d.]+)\s*([KMB])?/i);
   if (!match) return 0;
-  const base = parseFloat(match[1]);
+  const base = parseFloat(match[1] ?? '');
   const suffix = match[2]?.toUpperCase();
   const factor = suffix === 'B' ? 1e9 : suffix === 'M' ? 1e6 : suffix === 'K' ? 1e3 : 1;
   return base * factor;
@@ -326,7 +450,8 @@ export function countryFlag(value: string | null | undefined): string {
   }
   if (!iso2 && key.includes('-')) {
     const first = key.split('-')[0];
-    iso2 = ISO2_BY_NAME[first];
+    // `includes('-')` guarantees a first segment, but not to the checker.
+    if (first) iso2 = ISO2_BY_NAME[first];
   }
 
   const flag = iso2

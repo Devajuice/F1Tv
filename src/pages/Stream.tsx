@@ -40,9 +40,12 @@ export default function Stream() {
       typeof localStorage !== 'undefined'
         ? localStorage.getItem(STORAGE_KEY)
         : null;
-    return (
-      streamServers.find((s) => String(s.id) === saved) ?? streamServers[0]
-    );
+    // `streamServers` is a module-level const with a non-empty first entry, but
+    // noUncheckedIndexedAccess cannot prove it, and the empty-list case would
+    // hand back undefined and crash on `active.id` further down.
+    const fallback = streamServers[0];
+    if (!fallback) throw new Error('streamServers is empty');
+    return streamServers.find((s) => String(s.id) === saved) ?? fallback;
   });
 
   const [loading, setLoading] = useState(true);
@@ -120,7 +123,8 @@ export default function Stream() {
 
   const goToNextServer = useCallback(() => {
     const index = streamServers.findIndex((s) => s.id === active.id);
-    selectServer(streamServers[(index + 1) % streamServers.length]);
+    const nextServer = streamServers[(index + 1) % streamServers.length];
+    if (nextServer) selectServer(nextServer);
   }, [active.id, selectServer]);
 
   const showToast = useCallback((message: string) => {
@@ -304,7 +308,7 @@ export default function Stream() {
       {toast && (
         <div
           role="status"
-          className="animate-slide-down pointer-events-none fixed top-5 left-1/2 z-60 -translate-x-1/2 rounded-xs border border-white/12 bg-ink-900/95 px-3.5 py-2 font-mono text-[11px] text-mist-100 backdrop-blur-xl"
+          className="animate-slide-down pointer-events-none fixed top-5 left-1/2 z-60 -translate-x-1/2 rounded-xs border border-line/12 bg-ink-900/95 px-3.5 py-2 font-mono text-[11px] text-mist-100 backdrop-blur-xl"
         >
           {toast}
         </div>
@@ -321,7 +325,7 @@ export default function Stream() {
           <OverlayLink to="/home" icon={ArrowLeft} label="Back to dashboard" />
 
           {session && sessionMeta ? (
-            <div className="flex items-center gap-2.5 rounded-xs border border-white/10 bg-ink-900/80 px-3 py-1.5 backdrop-blur-xl">
+            <div className="flex items-center gap-2.5 rounded-xs border border-line/10 bg-ink-900/80 px-3 py-1.5 backdrop-blur-xl">
               {isRaceSession(session.session_name, session.session_type) && (
                 <LiveDot label="On air" />
               )}
@@ -335,7 +339,7 @@ export default function Stream() {
               </span>
             </div>
           ) : next ? (
-            <div className="hidden rounded-xs border border-white/10 bg-ink-900/80 px-3 py-1.5 backdrop-blur-xl sm:block">
+            <div className="hidden rounded-xs border border-line/10 bg-ink-900/80 px-3 py-1.5 backdrop-blur-xl sm:block">
               <span className="font-mono text-[9.5px] text-mist-500">Up next</span>
               <span className="ml-2 text-[11.5px] font-semibold text-mist-200">
                 {getSessionMeta(next.session_name, next.session_type).label}
@@ -391,7 +395,7 @@ export default function Stream() {
           <button
             type="button"
             onClick={() => setShowServers(true)}
-            className="inline-flex h-9 items-center gap-2 rounded-xs border border-white/12 bg-ink-900/85 px-3 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-mist-100 uppercase backdrop-blur-xl transition-colors hover:border-white/25 hover:bg-ink-850/90"
+            className="inline-flex h-9 items-center gap-2 rounded-xs border border-line/12 bg-ink-900/85 px-3 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-mist-100 uppercase backdrop-blur-xl transition-colors hover:border-line/25 hover:bg-ink-850/90"
             title="Switch server (S)"
           >
             <Server size={13} className="text-f1-red" />
@@ -433,7 +437,7 @@ export default function Stream() {
                   'group relative flex flex-col items-center gap-2 rounded-sm border px-3 py-4 transition-colors',
                   isActive
                     ? 'border-f1-red/45 bg-f1-red/10'
-                    : 'border-white/8 bg-white/[0.02] hover:border-white/20 hover:bg-white/[0.05]',
+                    : 'border-line/8 bg-veil/[0.02] hover:border-line/20 hover:bg-veil/[0.05]',
                 )}
               >
                 <span className="relative">
@@ -507,7 +511,7 @@ export default function Stream() {
             </div>
           ))}
         </dl>
-        <p className="mt-4 border-t border-white/[0.06] pt-3 text-[11px] leading-relaxed text-mist-500">
+        <p className="mt-4 border-t border-line/[0.06] pt-3 text-[11px] leading-relaxed text-mist-500">
           Picture-in-picture needs permission from the stream host's own player.
           If it refuses, use your browser's own picture-in-picture on the video.
         </p>
@@ -528,7 +532,7 @@ function OverlayIconButton({
     <button
       type="button"
       className={cn(
-        'inline-flex size-9 items-center justify-center rounded-xs border border-white/12 bg-ink-900/85 text-mist-100 backdrop-blur-xl transition-colors hover:border-white/25 hover:bg-ink-850/90',
+        'inline-flex size-9 items-center justify-center rounded-xs border border-line/12 bg-ink-900/85 text-mist-100 backdrop-blur-xl transition-colors hover:border-line/25 hover:bg-ink-850/90',
         className,
       )}
       {...rest}
@@ -556,7 +560,7 @@ function OverlayLink({
       aria-label={label}
       title={label}
       className={cn(
-        'inline-flex size-9 items-center justify-center rounded-xs border border-white/12 bg-ink-900/85 text-mist-100 backdrop-blur-xl transition-colors hover:border-white/25 hover:bg-ink-850/90',
+        'inline-flex size-9 items-center justify-center rounded-xs border border-line/12 bg-ink-900/85 text-mist-100 backdrop-blur-xl transition-colors hover:border-line/25 hover:bg-ink-850/90',
         className,
       )}
     >
@@ -582,7 +586,7 @@ function ControlButton({
         'inline-flex h-9 items-center gap-1.5 rounded-xs border px-3 font-mono text-[10.5px] font-semibold tracking-[0.06em] uppercase backdrop-blur-xl transition-colors',
         primary
           ? 'border-f1-red/50 bg-f1-red/20 text-mist-50 hover:bg-f1-red/30'
-          : 'border-white/12 bg-ink-900/85 text-mist-100 hover:border-white/25 hover:bg-ink-850/90',
+          : 'border-line/12 bg-ink-900/85 text-mist-100 hover:border-line/25 hover:bg-ink-850/90',
       )}
       {...rest}
     >

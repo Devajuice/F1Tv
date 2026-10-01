@@ -49,9 +49,9 @@ export default function NotFound() {
               <li key={to}>
                 <Link
                   to={to}
-                  className="group flex items-center gap-3 rounded-xs px-2.5 py-2.5 transition-colors hover:bg-white/[0.04]"
+                  className="group flex items-center gap-3 rounded-xs px-2.5 py-2.5 transition-colors hover:bg-veil/[0.04]"
                 >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xs border border-white/10 bg-white/[0.04] text-mist-400 transition-colors group-hover:border-f1-red/40 group-hover:text-f1-red-bright">
+                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xs border border-line/10 bg-veil/[0.04] text-mist-400 transition-colors group-hover:border-f1-red/40 group-hover:text-f1-red-bright">
                     <Icon size={14} />
                   </span>
                   <span className="min-w-0 flex-1">

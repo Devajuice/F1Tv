@@ -12,10 +12,10 @@ export type BadgeTone =
   | 'info';
 
 const TONES: Record<BadgeTone, string> = {
-  neutral: 'border-white/12 bg-white/5 text-mist-300',
+  neutral: 'border-line/12 bg-veil/5 text-mist-300',
   live: 'border-live/40 bg-live/12 text-live',
   next: 'border-telemetry/40 bg-telemetry/12 text-telemetry',
-  done: 'border-white/10 bg-white/[0.03] text-mist-500',
+  done: 'border-line/10 bg-veil/[0.03] text-mist-500',
   good: 'border-turf/35 bg-turf/10 text-turf',
   bad: 'border-f1-red/40 bg-f1-red/12 text-f1-red-bright',
   warn: 'border-sodium/40 bg-sodium/12 text-sodium',
@@ -78,7 +78,7 @@ export function TeamDot({ color, className }: { color: string; className?: strin
     <span
       aria-hidden
       className={cn(
-        'size-2 shrink-0 rounded-full ring-1 ring-white/15',
+        'size-2 shrink-0 rounded-full ring-1 ring-line/15',
         className,
       )}
       style={{ backgroundColor: color }}

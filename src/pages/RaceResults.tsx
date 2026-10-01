@@ -11,7 +11,7 @@ import {
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { getTeamColor } from '../data/teams';
-import { formatNumber, positionDelta, surname } from '../lib/format';
+import { formatDate, formatNumber, positionDelta, surname } from '../lib/format';
 import { getCompletedRaces, getRaceStart } from '../lib/races';
 import { PageContainer, PageHeader } from '../components/ui/PageHeader';
 import { Panel } from '../components/ui/Panel';
@@ -20,7 +20,8 @@ import { Tabs } from '../components/ui/Tabs';
 import { DataTable, PositionCell, Td, Th, Tr } from '../components/ui/Table';
 import { TeamDot } from '../components/ui/Badge';
 import { StatusPill } from '../components/ui/StatusPill';
-import { Flag, TrackImage } from '../components/ui/Atoms';
+import { Flag } from '../components/ui/Atoms';
+import { TrackMap } from '../components/ui/TrackMap';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
@@ -48,12 +49,13 @@ export default function RaceResults() {
   // Default to the most recent completed round, but honour ?round= from the
   // calendar page.
   useEffect(() => {
-    if (round || completed.length === 0) return;
+    const latest = completed[completed.length - 1];
+    if (round || !latest) return;
     const requested = params.get('round');
     const target =
       requested && completed.some((r) => r.round === requested)
         ? requested
-        : completed[completed.length - 1].round;
+        : latest.round;
     setRound(target);
     if (requested) {
       params.delete('round');
@@ -137,7 +139,7 @@ export default function RaceResults() {
       {race && (
         <Panel className="notched relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-            <TrackImage circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
+            <TrackMap circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
             <div className="min-w-0 flex-1">
               <p className="eyebrow mb-2 flex items-center gap-2">
                 <span className="accent-bar inline-block h-3 w-1.5" />
@@ -151,7 +153,7 @@ export default function RaceResults() {
                 {race.circuitName}
                 <span className="text-mist-600">·</span>
                 <span className="font-mono">
-                  {getRaceStart(race)?.toLocaleDateString()}
+                  {formatDate(getRaceStart(race))}
                 </span>
               </p>
             </div>
@@ -186,7 +188,7 @@ export default function RaceResults() {
                     <p className="num mt-1 font-mono text-[9.5px] text-mist-500">PTS</p>
                   </div>
                 </div>
-                <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-white/[0.06] pt-3">
+                <div className="mt-3.5 flex items-center justify-between gap-3 border-t border-line/[0.06] pt-3">
                   <span className="font-mono text-[10px] text-mist-500">
                     Grid {row.grid}
                   </span>
@@ -200,7 +202,7 @@ export default function RaceResults() {
 
       {/* ---- Full classification ---- */}
       <Panel flush>
-        <div className="border-b border-white/[0.06] px-5 py-4 sm:px-6">
+        <div className="border-b border-line/[0.06] px-5 py-4 sm:px-6">
           <div className="flex flex-wrap items-center justify-between gap-3">
             <div>
               <p className="eyebrow mb-1.5">Full classification</p>

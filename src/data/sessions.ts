@@ -22,7 +22,7 @@ const DEFAULT_META: SessionMeta = {
   badge: 'SESSION',
   label: 'Session',
   color: 'text-mist-300',
-  surface: 'bg-white/5 border-white/10',
+  surface: 'bg-veil/5 border-line/10',
   order: 99,
 };
 
@@ -37,11 +37,16 @@ const BY_NAME: Record<string, SessionMeta> = {
   'Race': { badge: 'RACE', label: 'Race', color: 'text-f1-red-bright', surface: 'bg-f1-red/15 border-f1-red/40', order: 7 },
 };
 
+// `BY_NAME['Practice 1']` needs bracket access because of the space, but under
+// `noUncheckedIndexedAccess` that widens to `SessionMeta | undefined`. A
+// non-null assertion is safe here: the key is one line above in the same file,
+// and TypeScript cannot see that. A miss degrades to FALLBACK at the lookup
+// site either way, so there is no runtime path that throws.
 const BY_TYPE: Record<string, SessionMeta> = {
-  Practice: BY_NAME['Practice 1'],
-  Qualifying: BY_NAME.Qualifying,
-  Race: BY_NAME.Race,
-  Sprint: BY_NAME.Sprint,
+  Practice: BY_NAME['Practice 1']!,
+  Qualifying: BY_NAME.Qualifying!,
+  Race: BY_NAME.Race!,
+  Sprint: BY_NAME.Sprint!,
 };
 
 export function getSessionMeta(

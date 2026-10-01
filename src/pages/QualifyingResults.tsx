@@ -17,7 +17,8 @@ import { RaceSelect } from '../components/ui/RaceSelect';
 import { Tabs } from '../components/ui/Tabs';
 import { DataTable, PositionCell, Td, Th, Tr } from '../components/ui/Table';
 import { TeamDot } from '../components/ui/Badge';
-import { Flag, TrackImage } from '../components/ui/Atoms';
+import { Flag } from '../components/ui/Atoms'
+import { TrackMap } from '../components/ui/TrackMap';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { cn } from '../lib/cn';
@@ -44,7 +45,7 @@ function phaseOf(r: QualifyingResult): Exclude<Phase, 'all'> {
 const PHASE_TONE: Record<Exclude<Phase, 'all'>, string> = {
   q3: 'border-purple-fp/40 bg-purple-fp/12 text-purple-fp',
   q2: 'border-sodium/40 bg-sodium/12 text-sodium',
-  q1: 'border-white/12 bg-white/5 text-mist-400',
+  q1: 'border-line/12 bg-veil/5 text-mist-400',
 };
 
 export default function QualifyingResults() {
@@ -60,8 +61,9 @@ export default function QualifyingResults() {
   const withQuali = useMemo(() => getRacesWithQualifying(races ?? []), [races]);
 
   useEffect(() => {
-    if (round || withQuali.length === 0) return;
-    setRound(withQuali[withQuali.length - 1].round);
+    const latest = withQuali[withQuali.length - 1];
+    if (round || !latest) return;
+    setRound(latest.round);
   }, [withQuali, round]);
 
   const race = withQuali.find((r) => r.round === round) ?? null;
@@ -143,7 +145,7 @@ export default function QualifyingResults() {
       {pole && (
         <Panel className="notched relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
-            <TrackImage
+            <TrackMap
               circuit={race?.locality ?? ''}
               round={race?.round}
               className="size-16 sm:size-20"

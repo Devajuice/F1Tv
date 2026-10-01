@@ -1,5 +1,3 @@
-const RSS2JSON = 'https://api.rss2json.com/v1/api.json';
-
 export interface NewsArticle {
   title: string;
   link: string;
@@ -11,69 +9,30 @@ export interface NewsArticle {
   categories: string[];
 }
 
-interface RssItem {
-  title: string;
-  link: string;
-  pubDate: string;
-  description: string;
-  thumbnail: string;
-  enclosure?: { link: string };
-  categories: string[];
+export interface NewsResponse {
+  articles: NewsArticle[];
+  cached: boolean;
+  stale?: boolean;
 }
 
-interface Rss2Json {
-  status: string;
-  items: RssItem[];
-  feed: { title: string };
-}
-
-const FEEDS = [
-  { url: 'https://www.motorsport.com/rss/f1/news/', source: 'Motorsport.com', sourceUrl: 'https://www.motorsport.com/f1/news/' },
-  { url: 'https://www.autosport.com/rss/f1/news/', source: 'Autosport', sourceUrl: 'https://www.autosport.com/f1/news/' },
-  { url: 'https://www.the-race.com/feed/', source: 'The Race', sourceUrl: 'https://www.the-race.com/' },
-];
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, '').replace(/&[^;]+;/g, ' ').trim();
-}
-
-function getImage(item: RssItem): string {
-  if (item.thumbnail) return item.thumbnail;
-  if (item.enclosure?.link) return item.enclosure.link;
-  const match = item.description.match(/<img[^>]+src="([^"]+)"/);
-  return match?.[1] ?? '';
-}
-
-function getExcerpt(item: RssItem): string {
-  const text = stripHtml(item.description);
-  return text.length > 200 ? text.slice(0, 200) + '...' : text;
-}
-
-export async function fetchNews(): Promise<NewsArticle[]> {
-  const results = await Promise.allSettled(
-    FEEDS.map(async (feed) => {
-      const res = await fetch(`${RSS2JSON}?rss_url=${encodeURIComponent(feed.url)}`);
-      if (!res.ok) return [];
-      const data: Rss2Json = await res.json();
-      if (data.status !== 'ok') return [];
-      return data.items.map((item) => ({
-        title: item.title,
-        link: item.link,
-        pubDate: item.pubDate,
-        description: getExcerpt(item),
-        thumbnail: getImage(item),
-        source: feed.source,
-        sourceUrl: feed.sourceUrl,
-        categories: item.categories ?? [],
-      }));
-    })
-  );
-
-  const all: NewsArticle[] = [];
-  for (const r of results) {
-    if (r.status === 'fulfilled') all.push(...r.value);
+async function getNews(): Promise<NewsResponse> {
+  const res = await fetch('/api/news', { headers: { accept: 'application/json' } });
+  if (!res.ok) {
+    const body = (await res.json().catch(() => null)) as { error?: string } | null;
+    throw new Error(body?.error ?? `News feed unavailable (${res.status})`);
   }
+  return res.json();
+}
 
-  all.sort((a, b) => new Date(b.pubDate).getTime() - new Date(a.pubDate).getTime());
-  return all;
+/**
+ * Fetch the aggregated feed.
+ *
+ * Goes through our own `/api/news` function rather than rss2json.com
+ * directly: that keeps the free third-party parser off the client, lets every
+ * visitor share one cached fetch instead of each making three, and gives the
+ * server a place to retry and fall back to its last good payload. See
+ * `api/news.js`.
+ */
+export function fetchNews(): Promise<NewsResponse> {
+  return getNews();
 }

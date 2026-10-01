@@ -83,7 +83,7 @@ export default function Drivers() {
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search drivers, teams or nationalities"
               aria-label="Search drivers"
-              className="h-10 w-full rounded-xs border border-white/10 bg-white/[0.03] pr-10 pl-9 text-[12.5px] text-mist-100 placeholder:text-mist-600 focus:border-f1-red/50 focus:ring-1 focus:ring-f1-red/30 focus:outline-none"
+              className="h-10 w-full rounded-xs border border-line/10 bg-veil/[0.03] pr-10 pl-9 text-[12.5px] text-mist-100 placeholder:text-mist-600 focus:border-f1-red/50 focus:ring-1 focus:ring-f1-red/30 focus:outline-none"
             />
             {hasQuery && (
               <button
@@ -98,7 +98,7 @@ export default function Drivers() {
           </div>
 
           <div
-            className="flex shrink-0 items-center gap-1 rounded-xs border border-white/10 bg-white/[0.03] p-1"
+            className="flex shrink-0 items-center gap-1 rounded-xs border border-line/10 bg-veil/[0.03] p-1"
             role="group"
             aria-label="Sort drivers"
           >
@@ -117,7 +117,7 @@ export default function Drivers() {
                 className={cn(
                   'inline-flex h-7 items-center gap-1.5 rounded-xs px-2.5 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors',
                   sort === key
-                    ? 'bg-white/10 text-mist-50'
+                    ? 'bg-veil/10 text-mist-50'
                     : 'text-mist-500 hover:text-mist-200',
                 )}
               >
@@ -235,7 +235,7 @@ function DriverCard({ driver }: { driver: DriverProfile }) {
         </div>
       </div>
 
-      <span className="num pointer-events-none absolute -top-3 -right-1 font-display text-[54px] leading-none font-black text-white/[0.02] select-none">
+      <span className="num pointer-events-none absolute -top-3 -right-1 font-display text-[54px] leading-none font-black text-line/[0.05] select-none">
         {initials(fullName)}
       </span>
     </Panel>

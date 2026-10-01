@@ -209,7 +209,7 @@ export function Select({
         aria-expanded={open}
         onClick={() => setOpen((o) => !o)}
         className={cn(
-          'flex w-full items-center gap-2.5 rounded-sm border border-white/10 bg-ink-800/80 px-3 py-2.5 text-left transition-all duration-250 ease-expo hover:border-white/20 hover:bg-ink-700/80',
+          'flex w-full items-center gap-2.5 rounded-sm border border-line/10 bg-ink-800/80 px-3 py-2.5 text-left transition-all duration-250 ease-expo hover:border-line/20 hover:bg-ink-700/80',
           open && 'border-f1-red/50 bg-ink-700/90',
           buttonClassName,
         )}
@@ -249,7 +249,7 @@ export function Select({
               maxHeight: MAX_HEIGHT,
               zIndex: 90,
             }}
-            className="flex flex-col overflow-hidden rounded-md border border-white/12 bg-ink-850/98 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.95)] backdrop-blur-2xl"
+            className="flex flex-col overflow-hidden rounded-md border border-line/12 bg-ink-850/98 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.95)] backdrop-blur-2xl"
           >
             {searchable && (
               <div className="hairline-b flex items-center gap-2 px-3 py-2.5">
@@ -289,8 +289,8 @@ export function Select({
                       'flex w-full items-center gap-2.5 rounded-xs px-2.5 py-2 text-left transition-colors duration-150',
                       option.disabled && 'pointer-events-none opacity-35',
                       isActive
-                        ? 'bg-white/8 text-mist-50'
-                        : 'text-mist-200 hover:bg-white/4',
+                        ? 'bg-veil/8 text-mist-50'
+                        : 'text-mist-200 hover:bg-veil/4',
                     )}
                   >
                     {option.lead}

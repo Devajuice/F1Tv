@@ -80,7 +80,7 @@ export function Tr({
   return (
     <tr
       className={cn(
-        'border-b border-white/[0.05] transition-colors duration-150 last:border-0 hover:bg-white/[0.025]',
+        'border-b border-line/[0.05] transition-colors duration-150 last:border-0 hover:bg-veil/[0.025]',
         className,
       )}
       {...rest}

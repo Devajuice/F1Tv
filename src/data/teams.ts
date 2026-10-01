@@ -21,7 +21,15 @@ export interface Team {
   accent: string;
 }
 
-/** Order used for legends and colour ranking. */
+/**
+ * Order used for legends and colour ranking.
+ *
+ * One entry per constructor — no alias rows. `RB` and `Sauber` used to be
+ * separate entries so that a bare constructorId would resolve, which meant the
+ * legend and standings both rendered "Racing Bulls" and "RB" as two teams and
+ * every consumer had to filter the duplicates out again. They are aliases like
+ * every other spelling, so `allTeams` is safe to render directly.
+ */
 const REGISTRY: Team[] = [
   { id: 'ferrari', name: 'Ferrari', fullName: 'Ferrari', color: '#e8002d', accent: '#ffd6db' },
   { id: 'red_bull', name: 'Red Bull', fullName: 'Red Bull Racing', color: '#3671c6', accent: '#f5d7a8' },
@@ -31,9 +39,7 @@ const REGISTRY: Team[] = [
   { id: 'williams', name: 'Williams', fullName: 'Williams', color: '#64c4ff', accent: '#e6f6ff' },
   { id: 'alpine', name: 'Alpine', fullName: 'Alpine', color: '#ff87bc', accent: '#ffe3ee' },
   { id: 'racing_bulls', name: 'Racing Bulls', fullName: 'Visa Cash App Racing Bulls', color: '#6692ff', accent: '#e0eaff' },
-  { id: 'rb', name: 'RB', fullName: 'RB', color: '#6692ff', accent: '#e0eaff' },
   { id: 'kick_sauber', name: 'Kick Sauber', fullName: 'Kick Sauber', color: '#52e252', accent: '#e2ffe2' },
-  { id: 'sauber', name: 'Sauber', fullName: 'Sauber', color: '#52e252', accent: '#e2ffe2' },
   { id: 'haas', name: 'Haas', fullName: 'Haas', color: '#b6babd', accent: '#f4f5f6' },
   { id: 'audi', name: 'Audi', fullName: 'Audi', color: '#f50535', accent: '#ffd9df' },
   { id: 'cadillac', name: 'Cadillac', fullName: 'Cadillac', color: '#c8a97e', accent: '#f6ecdd' },
@@ -60,12 +66,14 @@ const ALIASES: Record<string, string> = {
   alpine: 'alpine',
   renault: 'alpine',
   racing_bulls: 'racing_bulls',
-  rb: 'rb',
-  alpha_tauri: 'rb',
-  alphatauri: 'rb',
+  rb: 'racing_bulls',
+  alpha_tauri: 'racing_bulls',
+  alphatauri: 'racing_bulls',
   'visa cash app racing bulls': 'racing_bulls',
+  'racing bulls': 'racing_bulls',
   kick_sauber: 'kick_sauber',
-  sauber: 'sauber',
+  sauber: 'kick_sauber',
+  'kick sauber': 'kick_sauber',
   haas: 'haas',
   haas_f1: 'haas',
   audi: 'audi',

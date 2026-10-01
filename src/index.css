@@ -2,44 +2,95 @@
 
 /* ==========================================================================
    F1TV DESIGN SYSTEM
-   A broadcast-inspired dark theme: near-black canvas, F1 red as the single
-   loud accent, cool "timing screen" blue for data, generous negative space,
-   sharp 2px radii, wide-italic display type, and tabular numerics.
+
+   One set of semantic tokens, two themes. Everything the UI draws from —
+   surfaces, text, hairlines, scrims — resolves to a CSS variable declared in
+   `@theme` and overridden under `:root[data-theme='light']`. Because Tailwind
+   v4 emits utilities that reference `var(--color-*)`, flipping the theme is a
+   variable swap with no component changes.
+
+   Dark is the default: a near-black canvas, F1 red as the single loud accent,
+   cool "timing screen" blue for data, generous negative space, sharp 2px
+   radii, wide-italic display type, tabular numerics.
+
+   Two families of token carry the load:
+
+   - Scales (`ink-*` dark->light surfaces, `mist-*` light->dark text) that get
+     remapped wholesale per theme. Ordering is semantic, not literal, so a
+     component reads the same in both.
+   - `line` / `veil` / `scrim`, which replace hardcoded `white/NN` and
+     `ink-950` utilities. `line` and `veil` flip (a hairline is white-on-dark
+     and black-on-light); `scrim` deliberately does not, because it is the
+     legibility layer over photography and video, which stays dark either way.
    ========================================================================== */
 
-@theme {
+/* --------------------------------------------------------------------------
+   Palette.
+
+   Every value is declared exactly once, as a plain custom property with a
+   neutral name, and the Tailwind tokens below just point at it. Two things
+   come out of that indirection:
+
+   - `@theme inline` compiles `bg-ink-900` to `var(--pal-ink-900)` instead of
+     `var(--color-ink-900)`, so a token resolves against the element it is
+     painted on rather than against `:root`. That is what makes the light
+     overrides below apply to any subtree rather than only the document.
+   - `.theme-dark` only has to re-declare the palette (below) to pin a nested
+     subtree to dark. Without this the video player kept the light ramp's
+     text colours while sitting on a black stage.
+
+   Keep the two lists in step: every `--color-*` in `@theme inline` needs a
+   `--pal-*` definition in the dark palette, and any name overridden for light
+   must exist in both.
+   -------------------------------------------------------------------------- */
+
+@theme inline {
   /* ---- Brand ---- */
-  --color-f1-red: #e10600;
-  --color-f1-red-bright: #ff2014;
-  --color-f1-red-deep: #a30500;
-  --color-f1-red-glow: #ff3b30;
+  --color-f1-red: var(--pal-f1-red);
+  --color-f1-red-bright: var(--pal-f1-red-bright);
+  --color-f1-red-deep: var(--pal-f1-red-deep);
+  --color-f1-red-glow: var(--pal-f1-red-glow);
 
   /* ---- Canvas / surfaces ---- */
-  --color-ink-950: #07080a;
-  --color-ink-900: #0a0c0f;
-  --color-ink-850: #0e1116;
-  --color-ink-800: #13171d;
-  --color-ink-700: #1a1f27;
-  --color-ink-600: #252b35;
-  --color-ink-500: #343c48;
+  --color-ink-950: var(--pal-ink-950);
+  --color-ink-900: var(--pal-ink-900);
+  --color-ink-850: var(--pal-ink-850);
+  --color-ink-800: var(--pal-ink-800);
+  --color-ink-700: var(--pal-ink-700);
+  --color-ink-600: var(--pal-ink-600);
+  --color-ink-500: var(--pal-ink-500);
 
   /* ---- Text ---- */
-  --color-mist-50: #f7f9fb;
-  --color-mist-100: #e8ecf1;
-  --color-mist-200: #cdd4de;
-  --color-mist-300: #a3adbb;
-  --color-mist-400: #737e8e;
-  --color-mist-500: #545e6d;
-  --color-mist-600: #3c4450;
+  --color-mist-50: var(--pal-mist-50);
+  --color-mist-100: var(--pal-mist-100);
+  --color-mist-200: var(--pal-mist-200);
+  --color-mist-300: var(--pal-mist-300);
+  --color-mist-400: var(--pal-mist-400);
+  --color-mist-500: var(--pal-mist-500);
+  --color-mist-600: var(--pal-mist-600);
 
   /* ---- Semantic ---- */
-  --color-live: #ff3b30;
-  --color-turf: #2ee07f;
-  --color-turf-dim: #16a34a;
-  --color-telemetry: #4d8dff;
-  --color-sodium: #ffb020;
-  --color-purple-fp: #b57bff;
+  --color-live: var(--pal-live);
+  --color-turf: var(--pal-turf);
+  --color-turf-dim: var(--pal-turf-dim);
+  --color-telemetry: var(--pal-telemetry);
+  --color-sodium: var(--pal-sodium);
+  --color-purple-fp: var(--pal-purple-fp);
 
+  /* ---- Hairline / fill / scrim ---- */
+  --color-line: var(--pal-line);
+  --color-veil: var(--pal-veil);
+  --color-scrim: var(--pal-scrim);
+
+  /* ---- Elevation ---- */
+  --shadow-card: var(--pal-shadow-card);
+  --shadow-lift: var(--pal-shadow-lift);
+  --shadow-red: var(--pal-shadow-red);
+  --shadow-focus: 0 0 0 1px var(--pal-f1-red);
+}
+
+/* Static scale: these do not change between themes. */
+@theme {
   /* ---- Type ---- */
   --font-sans: "Geist", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
     "Helvetica Neue", sans-serif;
@@ -53,14 +104,6 @@
   --radius-md: 8px;
   --radius-lg: 12px;
   --radius-xl: 18px;
-
-  /* ---- Elevation ---- */
-  --shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset,
-    0 8px 28px -12px rgb(0 0 0 / 0.9);
-  --shadow-lift: 0 1px 0 0 rgb(255 255 255 / 0.07) inset,
-    0 18px 44px -18px rgb(0 0 0 / 0.95);
-  --shadow-red: 0 8px 32px -10px rgb(225 6 0 / 0.55);
-  --shadow-focus: 0 0 0 1px var(--color-f1-red);
 
   /* ---- Motion ---- */
   --ease-expo: cubic-bezier(0.16, 1, 0.3, 1);
@@ -77,6 +120,143 @@
   --animate-marquee: marquee 32s linear infinite;
   --animate-bar-grow: bar-grow 0.9s var(--ease-expo) both;
   --animate-spin-slow: spin 1s linear infinite;
+}
+
+/* --------------------------------------------------------------------------
+   Theme application.
+
+   `[data-theme='light']` is a bare attribute selector rather than
+   `:root[data-theme='light']` on purpose: it has to match any subtree, not
+   just the document element, so a light panel nested in a dark page works.
+
+   Because these are custom properties, a value set on an element always beats
+   one inherited from above. That is the whole mechanism behind `.theme-dark`:
+   the video player pins itself dark inside a light page by redeclaring the
+   palette, with no extra specificity.
+   -------------------------------------------------------------------------- */
+
+:root,
+.theme-dark {
+  color-scheme: dark;
+
+  /* ---- Brand ---- */
+  --pal-f1-red: #e10600;
+  --pal-f1-red-bright: #ff2014;
+  --pal-f1-red-deep: #a30500;
+  --pal-f1-red-glow: #ff3b30;
+
+  /* ---- Surfaces: darkest at the canvas, lightest at the raised edge ---- */
+  --pal-ink-950: #07080a;
+  --pal-ink-900: #0a0c0f;
+  --pal-ink-850: #0e1116;
+  --pal-ink-800: #13171d;
+  --pal-ink-700: #1a1f27;
+  --pal-ink-600: #252b35;
+  --pal-ink-500: #343c48;
+
+  /* ---- Text: lightest at the top of the ramp ---- */
+  --pal-mist-50: #f7f9fb;
+  --pal-mist-100: #e8ecf1;
+  --pal-mist-200: #cdd4de;
+  --pal-mist-300: #a3adbb;
+  --pal-mist-400: #737e8e;
+  --pal-mist-500: #545e6d;
+  --pal-mist-600: #3c4450;
+
+  /* ---- Semantic ---- */
+  --pal-live: #ff3b30;
+  --pal-turf: #2ee07f;
+  --pal-turf-dim: #16a34a;
+  --pal-telemetry: #4d8dff;
+  --pal-sodium: #ffb020;
+  --pal-purple-fp: #b57bff;
+
+  /* ---- Hairline / fill / scrim ---- */
+  --pal-line: #ffffff;
+  --pal-veil: #ffffff;
+  /* Deliberately not themed: this darkens whatever sits behind it, so a
+     light-mode modal backdrop has to stay near-black to do its job. */
+  --pal-scrim: #05070a;
+
+  /* ---- Elevation ---- */
+  --pal-shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.04) inset,
+    0 8px 28px -12px rgb(0 0 0 / 0.9);
+  --pal-shadow-lift: 0 1px 0 0 rgb(255 255 255 / 0.07) inset,
+    0 18px 44px -18px rgb(0 0 0 / 0.95);
+  --pal-shadow-red: 0 8px 32px -10px rgb(225 6 0 / 0.55);
+
+  --bloom-red: 0.13;
+  --bloom-blue: 0.07;
+
+  --edge-1: rgb(255 255 255 / 0.07);
+  --edge-2: rgb(255 255 255 / 0.14);
+  --edge-3: rgb(255 255 255 / 0.06);
+
+  --sheen-1: rgb(255 255 255 / 0.035);
+  --sheen-2: rgb(255 255 255 / 0.07);
+  --sheen-3: rgb(255 255 255 / 0.045);
+}
+
+[data-theme='light'] {
+  color-scheme: light;
+
+  /* --- Brand: deepen the accents so text-weight red and green still pass
+     contrast against a near-white surface. --- */
+  --pal-f1-red: #cc0500;
+  --pal-f1-red-bright: #b30a04;
+  --pal-f1-red-deep: #930300;
+  --pal-f1-red-glow: #c0231a;
+
+  /* --- Surfaces: the scale inverts. `ink-950` is the page canvas and is now
+     the lightest value; `ink-850` is the panel and sits just off-white so it
+     still separates from the canvas. --- */
+  --pal-ink-950: #eef1f6;
+  --pal-ink-900: #ffffff;
+  --pal-ink-850: #ffffff;
+  --pal-ink-800: #e9edf3;
+  --pal-ink-700: #dfe4ec;
+  --pal-ink-600: #ccd3de;
+  --pal-ink-500: #b3bcca;
+
+  /* --- Text: inverted ramp. `mist-50` is the strongest text, not the
+     lightest. --- */
+  --pal-mist-50: #0b0f16;
+  --pal-mist-100: #161b24;
+  --pal-mist-200: #2c3440;
+  --pal-mist-300: #454f5d;
+  --pal-mist-400: #5d6775;
+  --pal-mist-500: #737d8b;
+  --pal-mist-600: #99a2af;
+
+  /* --- Semantics --- */
+  --pal-live: #cf2418;
+  --pal-turf: #0b8f4d;
+  --pal-turf-dim: #076c39;
+  --pal-telemetry: #1f66d0;
+  --pal-sodium: #9a6200;
+  --pal-purple-fp: #7431cf;
+
+  /* --- Hairlines flip from white to near-black --- */
+  --pal-line: #0b0f16;
+  --pal-veil: #0b0f16;
+
+  /* --- Shadows lose their black cast and gain a tighter one --- */
+  --pal-shadow-card: 0 1px 0 0 rgb(255 255 255 / 0.9) inset,
+    0 6px 22px -14px rgb(11 15 22 / 0.28);
+  --pal-shadow-lift: 0 1px 0 0 rgb(255 255 255 / 0.95) inset,
+    0 14px 36px -18px rgb(11 15 22 / 0.34);
+  --pal-shadow-red: 0 8px 28px -12px rgb(204 5 0 / 0.4);
+
+  --bloom-red: 0.09;
+  --bloom-blue: 0.06;
+
+  --edge-1: rgb(11 15 22 / 0.12);
+  --edge-2: rgb(11 15 22 / 0.24);
+  --edge-3: rgb(11 15 22 / 0.1);
+
+  --sheen-1: rgb(255 255 255 / 0.9);
+  --sheen-2: rgb(255 255 255 / 0.55);
+  --sheen-3: rgb(11 15 22 / 0.05);
 }
 
 @keyframes fade-up {
@@ -201,16 +381,23 @@
     background:
       radial-gradient(
         120% 55% at 50% -10%,
-        rgb(225 6 0 / 0.13) 0%,
-        rgb(225 6 0 / 0.04) 34%,
+        rgb(225 6 0 / var(--bloom-red)) 0%,
+        rgb(225 6 0 / calc(var(--bloom-red) * 0.3)) 34%,
         transparent 68%
       ),
       radial-gradient(
         90% 50% at 50% 108%,
-        rgb(77 141 255 / 0.07) 0%,
+        rgb(77 141 255 / var(--bloom-blue)) 0%,
         transparent 70%
       ),
       linear-gradient(180deg, var(--color-ink-900) 0%, var(--color-ink-950) 55%);
+  }
+
+  /* Readable focus ring in both themes. `line` flips, so this follows. */
+  :focus-visible {
+    outline: 2px solid var(--color-f1-red);
+    outline-offset: 2px;
+    border-radius: 2px;
   }
 
   #root {
@@ -248,12 +435,6 @@
   img {
     display: block;
     max-width: 100%;
-  }
-
-  :focus-visible {
-    outline: 2px solid var(--color-f1-red);
-    outline-offset: 2px;
-    border-radius: 2px;
   }
 
   ::selection {
@@ -303,10 +484,10 @@
   /* The standard data surface. Used for every panel, card and row group. */
   .panel {
     position: relative;
-    border: 1px solid rgb(255 255 255 / 0.07);
+    border: 1px solid var(--edge-1);
     border-radius: var(--radius-lg);
     background:
-      linear-gradient(180deg, rgb(255 255 255 / 0.035) 0%, rgb(255 255 255 / 0) 42%),
+      linear-gradient(180deg, var(--sheen-1) 0%, transparent 42%),
       var(--color-ink-850);
     box-shadow: var(--shadow-card);
   }
@@ -322,7 +503,7 @@
   }
   .panel-interactive:hover {
     transform: translateY(-2px);
-    border-color: rgb(255 255 255 / 0.14);
+    border-color: var(--edge-2);
     box-shadow: var(--shadow-lift);
   }
   .panel-interactive:active {
@@ -331,7 +512,7 @@
 
   /* Frosted layer for chrome that floats above content (header, drawers). */
   .frost {
-    background: rgb(10 12 15 / 0.72);
+    background: color-mix(in oklab, var(--color-ink-900) 72%, transparent);
     backdrop-filter: blur(22px) saturate(160%);
     -webkit-backdrop-filter: blur(22px) saturate(160%);
   }
@@ -369,8 +550,8 @@
   .speedlines {
     background-image: repeating-linear-gradient(
       -58deg,
-      rgb(255 255 255 / 0.045) 0px,
-      rgb(255 255 255 / 0.045) 1px,
+      var(--sheen-3) 0px,
+      var(--sheen-3) 1px,
       transparent 1px,
       transparent 9px
     );
@@ -389,17 +570,17 @@
 
   /* Top-edge highlight line used to separate stacked surfaces. */
   .hairline-t {
-    border-top: 1px solid rgb(255 255 255 / 0.06);
+    border-top: 1px solid var(--edge-3);
   }
   .hairline-b {
-    border-bottom: 1px solid rgb(255 255 255 / 0.06);
+    border-bottom: 1px solid var(--edge-3);
   }
 
   /* Skeleton shimmer. One implementation for every loading state. */
   .shimmer {
     position: relative;
     overflow: hidden;
-    background: rgb(255 255 255 / 0.045);
+    background: var(--sheen-3);
   }
   .shimmer::after {
     content: "";
@@ -408,7 +589,7 @@
     background: linear-gradient(
       90deg,
       transparent 0%,
-      rgb(255 255 255 / 0.07) 50%,
+      var(--sheen-2) 50%,
       transparent 100%
     );
     animation: var(--animate-sheen);
@@ -432,12 +613,13 @@
     );
   }
 
-  /* Sticky table header cell. */
+  /* Sticky table header cell. Tinted toward the canvas so rows scrolling under
+     it lose contrast rather than colliding with the label. */
   .th {
     position: sticky;
     top: 0;
     z-index: 2;
-    background: rgb(10 12 15 / 0.94);
+    background: color-mix(in oklab, var(--color-ink-950) 94%, transparent);
     backdrop-filter: blur(12px);
     font-family: var(--font-mono);
     font-size: 9.5px;

@@ -1,5 +1,5 @@
 import { useMemo, useState } from 'react';
-import { ArrowUpRight, Clock, Newspaper } from 'lucide-react';
+import { AlertTriangle, ArrowUpRight, Clock, Newspaper } from 'lucide-react';
 import { fetchNews, type NewsArticle } from '../api/news';
 import { timeAgo } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
@@ -18,10 +18,21 @@ export default function News() {
   useDocumentTitle('News');
   const [source, setSource] = useState<string>(ALL);
 
-  const { data, loading, error, refresh, refreshing, lastFetchedAt } =
-    useAsync<NewsArticle[]>(() => fetchNews(), [], { intervalMs: 10 * 60_000 });
+  const {
+    data,
+    loading,
+    error,
+    refresh,
+    refreshing,
+    lastFetchedAt,
+  } = useAsync(() => fetchNews(), [], {
+    // The server caches for 15 minutes, so polling faster than that only
+    // re-reads its cache. Ten minutes keeps the page feeling live without
+    // asking it to hit RSS2JSON more often than the cache expires.
+    intervalMs: 15 * 60_000,
+  });
 
-  const articles = useMemo(() => data ?? [], [data]);
+  const articles = useMemo(() => data?.articles ?? [], [data]);
 
   const sources = useMemo(() => {
     const unique = new Map<string, string>();
@@ -38,6 +49,19 @@ export default function News() {
 
   return (
     <PageContainer className="pt-6 sm:pt-8">
+      {/* When every upstream feed failed but the server still had a previous
+          payload, the list is real but not fresh. Say so rather than letting
+          it look current. */}
+      {data?.stale && (
+        <div
+          role="status"
+          className="mb-4 flex items-center gap-2 rounded-sm border border-sodium/40 bg-sodium/10 px-3.5 py-2.5 text-[12px] text-sodium"
+        >
+          <AlertTriangle size={14} className="shrink-0" />
+          The news feeds are unreachable right now — showing the last good copy.
+        </div>
+      )}
+
       <PageHeader
         eyebrow={
           articles.length
@@ -138,7 +162,7 @@ function SourceChip({
     'rounded-xs border px-2.5 py-1 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors',
     active
       ? 'border-f1-red/45 bg-f1-red/12 text-mist-50'
-      : 'border-white/10 bg-white/[0.03] text-mist-400 hover:border-white/20 hover:text-mist-200',
+      : 'border-line/10 bg-veil/[0.03] text-mist-400 hover:border-line/20 hover:text-mist-200',
   );
 
   if (href) {
@@ -167,7 +191,7 @@ function Lead({ article }: { article: NewsArticle }) {
       href={article.link}
       target="_blank"
       rel="noreferrer noopener"
-      className="group relative block overflow-hidden rounded-md border border-white/10 bg-ink-900"
+      className="group relative block overflow-hidden rounded-md border border-line/10 bg-ink-900"
     >
       <div className="grid md:grid-cols-[1.15fr_1fr]">
         <div className="relative aspect-[16/10] overflow-hidden md:aspect-auto md:min-h-[300px]">
@@ -224,7 +248,7 @@ function Row({ article }: { article: NewsArticle }) {
       href={article.link}
       target="_blank"
       rel="noreferrer noopener"
-      className="group flex h-full gap-3.5 rounded-sm border border-white/8 bg-white/[0.02] p-3 transition-colors hover:border-white/16 hover:bg-white/[0.045]"
+      className="group flex h-full gap-3.5 rounded-sm border border-line/8 bg-veil/[0.02] p-3 transition-colors hover:border-line/16 hover:bg-veil/[0.045]"
     >
       <div className="relative size-20 shrink-0 overflow-hidden rounded-xs bg-ink-900 sm:size-24">
         {article.thumbnail ? (

@@ -1,3 +1,30 @@
+/**
+ * How long one page of the playlist is reused. Uploads land a few times a week,
+ * so 30 minutes costs nothing in freshness and saves a lot of quota: every
+ * cold request otherwise costs two units (playlistItems + videos/statistics),
+ * and the client walks up to 20 pages looking for each highlight category.
+ */
+const TTL_MS = 30 * 60 * 1000;
+
+/** pageToken -> { at, payload }. Bounded so a crawler cannot grow it forever. */
+const CACHE = new Map();
+const MAX_ENTRIES = 24;
+
+function readCache(pageToken) {
+  const hit = CACHE.get(pageToken);
+  if (!hit) return null;
+  if (Date.now() - hit.at > TTL_MS) {
+    CACHE.delete(pageToken);
+    return null;
+  }
+  return hit;
+}
+
+function writeCache(pageToken, payload) {
+  if (CACHE.size >= MAX_ENTRIES) CACHE.delete(CACHE.keys().next().value);
+  CACHE.set(pageToken, { at: Date.now(), payload });
+}
+
 export default async function handler(req, res) {
   const API_KEY = process.env.YOUTUBE_API_KEY;
   if (!API_KEY) {
@@ -5,6 +32,13 @@ export default async function handler(req, res) {
   }
 
   const { pageToken = '' } = req.query;
+
+  const cached = readCache(pageToken);
+  if (cached) {
+    res.setHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    return res.status(200).json({ ...cached.payload, cached: true });
+  }
+
   const playlistId = 'UUB_qr75-ydFVKSF9Dmo6izg';
 
   const params = new URLSearchParams({
@@ -59,10 +93,13 @@ export default async function handler(req, res) {
       };
     });
 
-    return res.status(200).json({
+    const payload = {
       videos,
       nextPageToken: data.nextPageToken || null,
-    });
+    };
+    writeCache(pageToken, payload);
+    res.setHeader('Cache-Control', 'public, max-age=600, stale-while-revalidate=3600');
+    return res.status(200).json(payload);
   } catch (err) {
     return res.status(500).json({ error: err.message });
   }

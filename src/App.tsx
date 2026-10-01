@@ -5,6 +5,8 @@ import { ImmersiveLayout, Layout } from './components/Layout';
 import BackToTop from './components/BackToTop';
 import { SessionProvider } from './context/SessionContext';
 import { NotificationsProvider } from './context/NotificationsContext';
+import { ThemeProvider } from './context/ThemeContext';
+import { TimeZoneProvider } from './context/TimeZoneContext';
 import RouteFallback from './components/RouteFallback';
 
 /* Route-level code splitting: the initial bundle no longer carries the
@@ -79,12 +81,18 @@ function AppRoutes() {
 export default function App() {
   return (
     <BrowserRouter>
-      <SessionProvider>
-        <NotificationsProvider>
-          <AppRoutes />
-          <BackToTop />
-        </NotificationsProvider>
-      </SessionProvider>
+      {/* Theme is outermost: the providers below and every page read tokens
+          that it remaps, and the settings dialog writes to it. */}
+      <ThemeProvider>
+        <TimeZoneProvider>
+          <SessionProvider>
+            <NotificationsProvider>
+              <AppRoutes />
+              <BackToTop />
+            </NotificationsProvider>
+          </SessionProvider>
+        </TimeZoneProvider>
+      </ThemeProvider>
     </BrowserRouter>
   );
 }

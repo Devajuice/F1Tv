@@ -1,53 +1,7 @@
-import { useState } from 'react';
+import type { ReactNode } from 'react';
 import { Flag as FlagIcon } from 'lucide-react';
-import { getTrackImageUrl } from '../../data/tracks';
 import { countryFlag, initials } from '../../lib/format';
 import { cn } from '../../lib/cn';
-
-/**
- * Circuit thumbnail from the official F1 CDN.
- *
- * Silently degrades to a monogram tile when we have no mapping for the
- * circuit or the image 404s — previously a broken image icon was left in
- * the calendar.
- */
-export function TrackImage({
-  circuit,
-  round,
-  className,
-}: {
-  circuit: string;
-  round?: string | number;
-  className?: string;
-}) {
-  const src = getTrackImageUrl(circuit);
-  const [failed, setFailed] = useState(false);
-  const showImage = src && !failed;
-
-  return (
-    <div
-      className={cn(
-        'relative flex shrink-0 items-center justify-center overflow-hidden rounded-sm border border-white/8 bg-ink-800',
-        className,
-      )}
-    >
-      {showImage ? (
-        <img
-          src={src}
-          alt={`${circuit} circuit layout`}
-          loading="lazy"
-          decoding="async"
-          onError={() => setFailed(true)}
-          className="size-full object-contain p-1 opacity-85 transition-opacity duration-300 hover:opacity-100"
-        />
-      ) : (
-        <span className="num text-[10px] font-semibold text-mist-500">
-          {round !== undefined ? `R${round}` : circuit.slice(0, 3).toUpperCase()}
-        </span>
-      )}
-    </div>
-  );
-}
 
 /** Flag emoji, with a chequered fallback for unknown countries. */
 export function Flag({ country }: { country: string | null | undefined }) {
@@ -125,8 +79,8 @@ export function Stat({
   className,
 }: {
   label: string;
-  value: React.ReactNode;
-  hint?: React.ReactNode;
+  value: ReactNode;
+  hint?: ReactNode;
   tone?: 'default' | 'accent' | 'live';
   className?: string;
 }) {
@@ -166,7 +120,7 @@ export function Meter({
   const clamped = Math.max(0, Math.min(1, value));
   return (
     <div
-      className={cn('h-1 w-full overflow-hidden rounded-full bg-white/6', className)}
+      className={cn('h-1 w-full overflow-hidden rounded-full bg-veil/6', className)}
     >
       <div
         className="bar-x h-full rounded-full"

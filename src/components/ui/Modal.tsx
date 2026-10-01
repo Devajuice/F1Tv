@@ -42,9 +42,9 @@ export function Modal({
       const focusables = document.querySelectorAll<HTMLElement>(
         '[data-modal] button, [data-modal] a[href], [data-modal] input, [data-modal] [tabindex]:not([tabindex="-1"])',
       );
-      if (focusables.length === 0) return;
       const first = focusables[0];
       const last = focusables[focusables.length - 1];
+      if (!first || !last) return;
       if (e.shiftKey && document.activeElement === first) {
         e.preventDefault();
         last.focus();
@@ -85,7 +85,7 @@ export function Modal({
         role="dialog"
         aria-modal="true"
         className={cn(
-          'animate-scale-in relative w-full max-w-lg overflow-hidden rounded-lg border border-white/12 bg-ink-850/98 shadow-[0_32px_80px_-24px_rgb(0_0_0/0.95)] backdrop-blur-2xl',
+          'animate-scale-in relative w-full max-w-lg overflow-hidden rounded-lg border border-line/12 bg-ink-850/98 shadow-[0_32px_80px_-24px_rgb(0_0_0/0.95)] backdrop-blur-2xl',
           className,
         )}
       >
@@ -106,7 +106,7 @@ export function Modal({
                 type="button"
                 onClick={onClose}
                 aria-label="Close"
-                className="-mt-1 -mr-1 rounded-sm p-1.5 text-mist-400 transition-colors hover:bg-white/8 hover:text-mist-100"
+                className="-mt-1 -mr-1 rounded-sm p-1.5 text-mist-400 transition-colors hover:bg-veil/8 hover:text-mist-100"
               >
                 <X size={16} />
               </button>
