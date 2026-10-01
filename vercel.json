@@ -7,7 +7,6 @@
   "headers": [
     {
       "source": "/assets/(.*)",
-      "destination": "/assets/$1",
       "headers": [
         {
           "key": "Cache-Control",
@@ -17,7 +16,6 @@
     },
     {
       "source": "/tracks/(.*)",
-      "destination": "/tracks/$1",
       "headers": [
         {
           "key": "Cache-Control",
@@ -27,7 +25,6 @@
     },
     {
       "source": "/api/news",
-      "destination": "/api/news",
       "headers": [
         {
           "key": "Cache-Control",
@@ -37,7 +34,6 @@
     },
     {
       "source": "/(.*)",
-      "destination": "/$1",
       "headers": [
         { "key": "X-Content-Type-Options", "value": "nosniff" },
         { "key": "Referrer-Policy", "value": "strict-origin-when-cross-origin" },
@@ -48,7 +44,7 @@
         },
         {
           "key": "Content-Security-Policy",
-          "value": "default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; frame-src https:; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'; object-src 'none'"
+          "value": "default-src 'self'; script-src 'self' 'sha256-gT7Ehx93Oh+Ns4DoiqROhJdyVLggke4Znj1Pxr/dn64='; style-src 'self' 'unsafe-inline' https://fonts.googleapis.com; font-src 'self' https://fonts.gstatic.com; img-src 'self' data: blob: https:; frame-src https:; connect-src 'self'; base-uri 'self'; form-action 'none'; frame-ancestors 'self'; object-src 'none'"
         }
       ]
     }
