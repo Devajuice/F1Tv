@@ -1,10 +1,20 @@
-const VERSION = 'v3';
+const VERSION = 'v4';
 const SHELL_CACHE = `f1tv-shell-${VERSION}`;
 const ASSET_CACHE = `f1tv-assets-${VERSION}`;
 const SHELL_URL = '/index.html';
 const OFFLINE_URL = '/offline.html';
 
-const PRECACHE = [SHELL_URL, OFFLINE_URL, '/favicon.svg', '/site.webmanifest'];
+// theme-init.js is in the precache because it is render-blocking: if it is
+// missing the page paints before the theme is applied, which is exactly the
+// dark flash it exists to prevent. The SHELL_CACHE key is versioned, so a stale
+// copy cannot be served after this changes.
+const PRECACHE = [
+  SHELL_URL,
+  OFFLINE_URL,
+  '/theme-init.js',
+  '/favicon.svg',
+  '/site.webmanifest',
+];
 
 /** Static, long-lived assets we can safely serve cache-first. */
 function isStaticAsset(url) {

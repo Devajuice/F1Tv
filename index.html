@@ -31,26 +31,14 @@
     <meta property="og:image" content="/android-chrome-512x512.png" />
     <meta name="twitter:card" content="summary" />
 
-    <!-- Theme: applied before first paint so a light-theme reload never shows
-         a dark flash. Must stay inline and blocking — a module or deferred
-         script runs too late. Kept in sync with THEME_BOOTSTRAP in
-         src/context/ThemeContext.tsx. -->
-    <script>
-      (function () {
-        try {
-          var p = localStorage.getItem('f1tv:theme');
-          if (p !== 'light' && p !== 'dark') {
-            p = window.matchMedia('(prefers-color-scheme: light)').matches
-              ? 'light'
-              : 'dark';
-          }
-          document.documentElement.dataset.theme = p;
-          document.documentElement.style.colorScheme = p;
-        } catch (e) {
-          document.documentElement.dataset.theme = 'dark';
-        }
-      })();
-    </script>
+    <!-- Theme: applied before first paint so a light-theme reload never shows a
+         dark flash. Must stay a plain blocking script — a module, deferred or
+         async script runs too late. It lives in public/theme-init.js rather than
+         inline so that `script-src 'self'` can stay strict: an inline script
+         would need its bytes hashed into the CSP, and that hash breaks silently
+         whenever the script is reformatted. Keep the logic in sync with
+         THEME_BOOTSTRAP in src/context/ThemeContext.tsx. -->
+    <script src="/theme-init.js"></script>
 
     <!-- Fonts: Geist (UI), Geist Mono (numerics), Archivo (display wordmark) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />
