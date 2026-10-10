@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { Trophy, Users } from 'lucide-react';
 import {
   getConstructorStandings,
   getDriverStandings,
@@ -108,12 +107,6 @@ export default function Standings() {
                 key={row.position}
                 className={`relative overflow-hidden ${i === 0 ? 'sm:order-first' : ''}`}
               >
-                {i === 0 && (
-                  <span
-                    aria-hidden
-                    className="accent-bar absolute top-0 left-0 h-full w-1"
-                  />
-                )}
                 <div className="flex items-center gap-3.5">
                   {isDriver ? (
                     <DriverAvatar
@@ -176,7 +169,6 @@ export default function Standings() {
             </div>
           ) : rows.length === 0 ? (
             <EmptyState
-              icon={tab === 'drivers' ? <Users size={18} /> : <Trophy size={18} />}
               title="No standings available"
               description={
                 round

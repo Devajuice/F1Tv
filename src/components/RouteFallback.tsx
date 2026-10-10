@@ -1,4 +1,5 @@
 import { cn } from '../lib/cn';
+import { MorphingShapeLoader } from './ui/Loader';
 
 /** Shown while a lazily-loaded route chunk is in flight. */
 export default function RouteFallback({ immersive = false }: { immersive?: boolean }) {
@@ -6,11 +7,7 @@ export default function RouteFallback({ immersive = false }: { immersive?: boole
     return (
       <div className="flex min-h-dvh items-center justify-center">
         <div className="flex flex-col items-center gap-4">
-          <div className="flex flex-col gap-[4px] skew-x-[-18deg]">
-            <span className="h-1 w-16 rounded-[1px] bg-f1-red" />
-            <span className="h-1 w-11 rounded-[1px] bg-mist-200" />
-            <span className="h-1 w-7 rounded-[1px] bg-mist-600" />
-          </div>
+          <MorphingShapeLoader size={44} label="Buffering" />
           <span className="font-mono text-[10px] tracking-[0.2em] text-mist-500 uppercase">
             Buffering
           </span>

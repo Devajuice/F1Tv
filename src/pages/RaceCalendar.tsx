@@ -1,6 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { CalendarPlus, ChevronDown, MapPin } from 'lucide-react';
 import { getSchedule, type Race } from '../api/f1Api';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
@@ -23,6 +22,7 @@ import { Panel } from '../components/ui/Panel';
 import { EmptyState, ErrorState } from '../components/ui/States';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { Tabs } from '../components/ui/Tabs';
+import { UnfoldAccordion } from '../components/ui/Accordion';
 import { cn } from '../lib/cn';
 
 type Filter = 'all' | 'upcoming' | 'completed';
@@ -85,13 +85,11 @@ export default function RaceCalendar() {
 
       {/* ---- Next race feature ---- */}
       {nextRace && (
-        <Panel className="notched relative mb-4 overflow-hidden">
-          <div aria-hidden className="speedlines pointer-events-none absolute inset-0 opacity-40" />
+        <Panel className="relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-6 sm:flex-row sm:items-center">
             <TrackMap circuit={nextRace.locality} round={nextRace.round} className="size-20 sm:size-24" />
             <div className="min-w-0 flex-1">
-              <p className="eyebrow mb-2 flex items-center gap-2">
-                <span className="accent-bar inline-block h-3 w-1.5" />
+              <p className="eyebrow mb-2">
                 Next race · Round {Number(nextRace.round)}
               </p>
               <h2 className="font-display text-2xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-3xl">
@@ -99,8 +97,7 @@ export default function RaceCalendar() {
               </h2>
               <p className="mt-2 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-[12.5px] text-mist-400">
                 <Flag country={nextRace.country} />
-                <span className="inline-flex items-center gap-1.5">
-                  <MapPin size={11} />
+                <span>
                   {nextRace.circuitName}, {nextRace.locality}
                 </span>
               </p>
@@ -116,8 +113,7 @@ export default function RaceCalendar() {
                 className="mt-3"
                 onClick={() => downloadICS(nextRace)}
               >
-                <CalendarPlus size={12} />
-                Add
+                Add to calendar
               </Button>
             </div>
           </div>
@@ -196,137 +192,127 @@ function RaceRow({
 
   return (
     <li className="border-b border-line/[0.05] last:border-0">
-      <button
-        type="button"
-        onClick={onToggle}
-        aria-expanded={expanded}
-        className={cn(
-          'group flex w-full items-center gap-3 px-4 py-3.5 text-left transition-colors sm:gap-4 sm:px-6',
+      <UnfoldAccordion
+        open={expanded}
+        onToggle={onToggle}
+        headerClassName={cn(
+          'group flex items-center gap-3 px-4 py-3.5 transition-colors sm:gap-4 sm:px-6',
           expanded ? 'bg-veil/[0.03]' : 'hover:bg-veil/[0.025]',
         )}
+        contentClassName="grid gap-5 bg-ink-900/40 px-4 py-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-6 sm:px-6"
+        header={
+          <>
+            <span className="num w-7 shrink-0 text-[13px] font-bold text-mist-500 transition-colors group-hover:text-mist-300">
+              {String(Number(race.round)).padStart(2, '0')}
+            </span>
+
+            <TrackMap circuit={race.locality} round={race.round} className="size-11 shrink-0" />
+
+            <span className="min-w-0 flex-1">
+              <span className="flex items-center gap-2">
+                <Flag country={race.country} />
+                <span className="truncate text-[13.5px] font-semibold text-mist-50">
+                  {race.raceName}
+                </span>
+              </span>
+              <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10.5px] text-mist-500">
+                <span className="truncate">{race.circuitName}</span>
+                <span className="text-mist-600">·</span>
+                <span className="whitespace-nowrap">
+                  {formatDate(start ?? race.date, tz)} ·{' '}
+                  {formatTimeZoned(start, tz).split(' ')[0]}
+                </span>
+              </span>
+            </span>
+
+            <span className="hidden w-24 shrink-0 text-right sm:block">
+              <span className="block font-mono text-[10.5px] text-mist-400">
+                {relativeDayLabel(start ?? race.date, now, tz)}
+              </span>
+            </span>
+
+            {status === 'live' ? (
+              <LiveDot label="Live" className="shrink-0" />
+            ) : status === 'completed' ? (
+              <Badge tone="done" className="shrink-0">
+                Done
+              </Badge>
+            ) : isNext ? (
+              <Badge tone="live" className="shrink-0">
+                Next
+              </Badge>
+            ) : (
+              <span className="num hidden shrink-0 font-mono text-[10px] text-mist-600 sm:block">
+                R{race.round}
+              </span>
+            )}
+          </>
+        }
       >
-        <span className="num w-7 shrink-0 text-[13px] font-bold text-mist-500 transition-colors group-hover:text-mist-300">
-          {String(Number(race.round)).padStart(2, '0')}
-        </span>
-
-        <TrackMap circuit={race.locality} round={race.round} className="size-11 shrink-0" />
-
-        <span className="min-w-0 flex-1">
-          <span className="flex items-center gap-2">
-            <Flag country={race.country} />
-            <span className="truncate text-[13.5px] font-semibold text-mist-50">
-              {race.raceName}
-            </span>
-          </span>
-          <span className="mt-1 flex flex-wrap items-center gap-x-2 gap-y-0.5 font-mono text-[10.5px] text-mist-500">
-            <span className="truncate">{race.circuitName}</span>
-            <span className="text-mist-600">·</span>
-            <span className="whitespace-nowrap">
-              {formatDate(start ?? race.date, tz)} ·{' '}
-              {formatTimeZoned(start, tz).split(' ')[0]}
-            </span>
-          </span>
-        </span>
-
-        <span className="hidden w-24 shrink-0 text-right sm:block">
-          <span className="block font-mono text-[10.5px] text-mist-400">
-            {relativeDayLabel(start ?? race.date, now, tz)}
-          </span>
-        </span>
-
-        {status === 'live' ? (
-          <LiveDot label="Live" className="shrink-0" />
-        ) : status === 'completed' ? (
-          <Badge tone="done" className="shrink-0">
-            Done
-          </Badge>
-        ) : isNext ? (
-          <Badge tone="live" className="shrink-0">
-            Next
-          </Badge>
-        ) : (
-          <span className="num hidden shrink-0 font-mono text-[10px] text-mist-600 sm:block">
-            R{race.round}
-          </span>
-        )}
-
-        <ChevronDown
-          size={14}
-          className={cn(
-            'shrink-0 text-mist-500 transition-transform duration-300 ease-expo',
-            expanded && 'rotate-180 text-mist-300',
-          )}
+        <TrackMap
+          circuit={race.locality}
+          round={race.round}
+          className="hidden size-28 sm:block"
         />
-      </button>
 
-      {expanded && (
-        <div className="animate-slide-down grid gap-5 bg-ink-900/40 px-4 py-5 sm:grid-cols-[auto_1fr_auto] sm:items-center sm:gap-6 sm:px-6">
-          <TrackMap
-            circuit={race.locality}
-            round={race.round}
-            className="hidden size-28 sm:block"
-          />
-
-          <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] sm:max-w-md">
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px] sm:max-w-md">
+          <div>
+            <dt className="eyebrow mb-1.5">Circuit</dt>
+            <dd className="text-mist-200">
+              {race.circuitName}
+              <span className="mt-0.5 block text-[11px] text-mist-500">
+                {race.locality}, {race.country}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt className="eyebrow mb-1.5">Start</dt>
+            <dd className="text-mist-200">
+              {formatDate(start ?? race.date)}
+              <span className="mt-0.5 block font-mono text-[11px] text-mist-400">
+                {formatTimeZoned(start)} your time
+              </span>
+            </dd>
+          </div>
+          {race.qualifyingDate && (
             <div>
-              <dt className="eyebrow mb-1.5">Circuit</dt>
+              <dt className="eyebrow mb-1.5">Qualifying</dt>
               <dd className="text-mist-200">
-                {race.circuitName}
-                <span className="mt-0.5 block text-[11px] text-mist-500">
-                  {race.locality}, {race.country}
-                </span>
-              </dd>
-            </div>
-            <div>
-              <dt className="eyebrow mb-1.5">Start</dt>
-              <dd className="text-mist-200">
-                {formatDate(start ?? race.date)}
+                {formatDate(
+                  joinDateTime(race.qualifyingDate, race.qualifyingTime),
+                  tz,
+                )}
                 <span className="mt-0.5 block font-mono text-[11px] text-mist-400">
-                  {formatTimeZoned(start)} your time
-                </span>
-              </dd>
-            </div>
-            {race.qualifyingDate && (
-              <div>
-                <dt className="eyebrow mb-1.5">Qualifying</dt>
-                <dd className="text-mist-200">
-                  {formatDate(
+                  {formatTimeZoned(
                     joinDateTime(race.qualifyingDate, race.qualifyingTime),
                     tz,
                   )}
-                  <span className="mt-0.5 block font-mono text-[11px] text-mist-400">
-                    {formatTimeZoned(
-                      joinDateTime(race.qualifyingDate, race.qualifyingTime),
-                      tz,
-                    )}
-                  </span>
-                </dd>
-              </div>
-            )}
-            <div>
-              <dt className="eyebrow mb-1.5">Round</dt>
-              <dd className="text-mist-200">
-                {Number(race.round)} of {totalRounds}
+                </span>
               </dd>
             </div>
-          </dl>
-
-          <div className="flex flex-wrap items-center gap-2 sm:justify-end">
-            <Button size="sm" variant="secondary" onClick={() => downloadICS(race)}>
-              <CalendarPlus size={12} />
-              Add to calendar
-            </Button>
-            {status === 'completed' && (
-              <Link
-                to={`/results?round=${race.round}`}
-                className="inline-flex h-8 items-center gap-2 rounded-sm border border-line/12 bg-veil/5 px-3 text-[10px] font-semibold tracking-[0.08em] whitespace-nowrap text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-veil/9"
-              >
-                Result
-              </Link>
-            )}
+          )}
+          <div>
+            <dt className="eyebrow mb-1.5">Round</dt>
+            <dd className="text-mist-200">
+              {Number(race.round)} of {totalRounds}
+            </dd>
           </div>
+        </dl>
+
+        <div className="flex flex-wrap items-center gap-2 sm:justify-end">
+          <Button size="sm" variant="secondary" onClick={() => downloadICS(race)}>
+            Add to calendar
+          </Button>
+          {status === 'completed' && (
+            <Link
+              to={`/results?round=${race.round}`}
+              className="inline-flex h-8 items-center gap-2 rounded-sm border border-line/12 bg-veil/5 px-3 text-[10px] font-semibold tracking-[0.08em] whitespace-nowrap text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-veil/9"
+            >
+              Result
+            </Link>
+          )}
         </div>
-      )}
+      </UnfoldAccordion>
     </li>
   );
 }

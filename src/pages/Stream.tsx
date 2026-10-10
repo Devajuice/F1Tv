@@ -1,24 +1,11 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import type { ComponentProps } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  AlertTriangle,
-  ArrowLeft,
-  Keyboard,
-  Maximize,
-  MonitorSmartphone,
-  Play,
-  RefreshCw,
-  Server,
-  SkipForward,
-  Wifi,
-  WifiOff,
-} from 'lucide-react';
 import { streamServers, type StreamServer } from '../data/streamServers';
 import { getSessionMeta, isRaceSession } from '../data/sessions';
 import { useSession } from '../context/SessionContext';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
-import { Modal } from '../components/ui/Modal';
+import { MorphingDialog } from '../components/ui/MorphingDialog';
 import { LiveDot } from '../components/ui/Badge';
 import { cn } from '../lib/cn';
 
@@ -284,9 +271,7 @@ export default function Stream() {
       {/* -------------------------- Stalled state ------------------------- */}
       {stalled && (
         <div className="absolute inset-0 z-20 flex flex-col items-center justify-center gap-4 bg-ink-950 px-6 text-center">
-          <span className="flex size-12 items-center justify-center rounded-full border border-sodium/40 bg-sodium/10 text-sodium">
-            <AlertTriangle size={20} />
-          </span>
+          <p className="eyebrow text-sodium">Stream error</p>
           <div>
             <p className="font-display text-base font-bold text-mist-50">
               {active.name} isn't responding
@@ -297,9 +282,9 @@ export default function Stream() {
             </p>
           </div>
           <div className="mt-1 flex flex-wrap items-center justify-center gap-2">
-            <ControlButton onClick={goToNextServer} icon={SkipForward} label="Next server" primary />
-            <ControlButton onClick={() => setShowServers(true)} icon={Server} label="All servers" />
-            <ControlButton onClick={selectServer.bind(null, active)} icon={RefreshCw} label="Retry" />
+            <ControlButton onClick={goToNextServer} label="Next server" primary />
+            <ControlButton onClick={() => setShowServers(true)} label="All servers" />
+            <ControlButton onClick={selectServer.bind(null, active)} label="Retry" />
           </div>
         </div>
       )}
@@ -308,7 +293,7 @@ export default function Stream() {
       {toast && (
         <div
           role="status"
-          className="animate-slide-down pointer-events-none fixed top-5 left-1/2 z-60 -translate-x-1/2 rounded-xs border border-line/12 bg-ink-900/95 px-3.5 py-2 font-mono text-[11px] text-mist-100 backdrop-blur-xl"
+          className="animate-slide-down pointer-events-none fixed top-5 left-1/2 z-60 -translate-x-1/2 rounded-xs border border-line/12 bg-ink-900/95 px-3.5 py-2 font-mono text-[11px] text-mist-100"
         >
           {toast}
         </div>
@@ -322,10 +307,10 @@ export default function Stream() {
         )}
       >
         <div className="pointer-events-auto flex items-center gap-2">
-          <OverlayLink to="/home" icon={ArrowLeft} label="Back to dashboard" />
+          <OverlayLink to="/home" label="Back to dashboard" />
 
           {session && sessionMeta ? (
-            <div className="flex items-center gap-2.5 rounded-xs border border-line/10 bg-ink-900/80 px-3 py-1.5 backdrop-blur-xl">
+            <div className="flex items-center gap-2.5 rounded-xs border border-line/10 bg-ink-900/80 px-3 py-1.5">
               {isRaceSession(session.session_name, session.session_type) && (
                 <LiveDot label="On air" />
               )}
@@ -339,7 +324,7 @@ export default function Stream() {
               </span>
             </div>
           ) : next ? (
-            <div className="hidden rounded-xs border border-line/10 bg-ink-900/80 px-3 py-1.5 backdrop-blur-xl sm:block">
+            <div className="hidden rounded-xs border border-line/10 bg-ink-900/80 px-3 py-1.5 sm:block">
               <span className="font-mono text-[9.5px] text-mist-500">Up next</span>
               <span className="ml-2 text-[11.5px] font-semibold text-mist-200">
                 {getSessionMeta(next.session_name, next.session_type).label}
@@ -358,7 +343,7 @@ export default function Stream() {
         )}
       >
         <div className="pointer-events-auto flex items-center gap-2">
-          <OverlayLink to="/home" icon={ArrowLeft} label="Back to dashboard" className="sm:hidden" />
+          <OverlayLink to="/home" label="Back to dashboard" className="sm:hidden" />
           <div className="hidden sm:block">
             <p className="font-mono text-[9px] tracking-[0.18em] text-mist-600 uppercase">
               Stream source
@@ -368,26 +353,26 @@ export default function Stream() {
         </div>
 
         <div className="pointer-events-auto flex items-center gap-2">
-          <OverlayIconButton
-            icon={SkipForward}
+          <OverlayButton
+            label="Next"
             onClick={goToNextServer}
             aria-label="Next server"
             title="Next server (N)"
           />
-          <OverlayIconButton
-            icon={MonitorSmartphone}
+          <OverlayButton
+            label="PiP"
             onClick={requestPiP}
             aria-label="Picture in picture"
             title="Picture-in-picture (P)"
           />
-          <OverlayIconButton
-            icon={Maximize}
+          <OverlayButton
+            label="Full"
             onClick={toggleFullscreen}
             aria-label="Fullscreen"
             title="Fullscreen (F)"
           />
-          <OverlayIconButton
-            icon={Keyboard}
+          <OverlayButton
+            label="Keys"
             onClick={() => setShowHelp(true)}
             aria-label="Keyboard shortcuts"
             title="Shortcuts (H)"
@@ -395,15 +380,14 @@ export default function Stream() {
           <button
             type="button"
             onClick={() => setShowServers(true)}
-            className="inline-flex h-9 items-center gap-2 rounded-xs border border-line/12 bg-ink-900/85 px-3 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-mist-100 uppercase backdrop-blur-xl transition-colors hover:border-line/25 hover:bg-ink-850/90"
+            className="inline-flex h-9 items-center gap-2 rounded-xs border border-line/12 bg-ink-900/85 px-3 font-mono text-[10.5px] font-semibold tracking-[0.08em] text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-ink-850/90"
             title="Switch server (S)"
           >
-            <Server size={13} className="text-f1-red" />
+            <span className="text-f1-red">●</span>
             <span className="hidden sm:inline">{active.name}</span>
             <span className="sm:hidden">Servers</span>
             {onlineCount > 0 && (
-              <span className="inline-flex items-center gap-1 rounded-xs bg-turf/12 px-1.5 py-0.5 text-[9px] text-turf">
-                <Wifi size={8} />
+              <span className="inline-flex items-center rounded-xs bg-turf/12 px-1.5 py-0.5 text-[9px] text-turf">
                 {onlineCount}
               </span>
             )}
@@ -412,7 +396,7 @@ export default function Stream() {
       </div>
 
       {/* ------------------------- Server picker ------------------------- */}
-      <Modal
+      <MorphingDialog
         open={showServers}
         onClose={() => setShowServers(false)}
         title="Select a server"
@@ -440,34 +424,28 @@ export default function Stream() {
                     : 'border-line/8 bg-veil/[0.02] hover:border-line/20 hover:bg-veil/[0.05]',
                 )}
               >
-                <span className="relative">
-                  <Play
-                    size={17}
-                    className={isActive ? 'text-f1-red' : 'text-mist-500'}
-                    fill={isActive ? 'currentColor' : 'none'}
-                  />
+                <span className="flex items-center gap-2">
                   <span
+                    aria-hidden
                     className={cn(
-                      'absolute -top-0.5 -right-1 size-2.5 rounded-full border-2 border-ink-900',
+                      'size-2.5 rounded-full',
                       state === 'reachable' && 'bg-turf',
                       state === 'unreachable' && 'bg-f1-red',
                       state === 'checking' && 'animate-pulse bg-mist-500',
                     )}
                   />
-                </span>
-                <span className="text-[11.5px] font-semibold text-mist-100">
-                  {server.name}
+                  <span className="text-[11.5px] font-semibold text-mist-100">
+                    {server.name}
+                  </span>
                 </span>
                 <span
                   className={cn(
-                    'inline-flex items-center gap-1 font-mono text-[9px] tracking-[0.08em] uppercase',
+                    'font-mono text-[9px] tracking-[0.08em] uppercase',
                     state === 'reachable' && 'text-turf',
                     state === 'unreachable' && 'text-f1-red-bright',
                     state === 'checking' && 'text-mist-600',
                   )}
                 >
-                  {state === 'reachable' && <Wifi size={9} />}
-                  {state === 'unreachable' && <WifiOff size={9} />}
                   {state}
                 </span>
               </button>
@@ -478,15 +456,14 @@ export default function Stream() {
         <button
           type="button"
           onClick={() => void probe(streamServers)}
-          className="mt-4 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.08em] text-mist-500 uppercase transition-colors hover:text-mist-200"
+          className="mt-4 inline-flex items-center font-mono text-[10px] tracking-[0.08em] text-mist-500 uppercase transition-colors hover:text-mist-200"
         >
-          <RefreshCw size={11} />
           Re-check all servers
         </button>
-      </Modal>
+      </MorphingDialog>
 
       {/* --------------------------- Shortcuts --------------------------- */}
-      <Modal
+      <MorphingDialog
         open={showHelp}
         onClose={() => setShowHelp(false)}
         title="Keyboard shortcuts"
@@ -515,29 +492,29 @@ export default function Stream() {
           Picture-in-picture needs permission from the stream host's own player.
           If it refuses, use your browser's own picture-in-picture on the video.
         </p>
-      </Modal>
+      </MorphingDialog>
     </div>
   );
 }
 
 /* ---------------------------------------------------------------------- */
 
-/** Small frosted square used for the corner player actions. */
-function OverlayIconButton({
-  icon: Icon,
+/** Text control used for the corner player actions. */
+function OverlayButton({
+  label,
   className,
   ...rest
-}: { icon: typeof Play } & Omit<ComponentProps<'button'>, 'children'>) {
+}: { label: string } & Omit<ComponentProps<'button'>, 'children'>) {
   return (
     <button
       type="button"
       className={cn(
-        'inline-flex size-9 items-center justify-center rounded-xs border border-line/12 bg-ink-900/85 text-mist-100 backdrop-blur-xl transition-colors hover:border-line/25 hover:bg-ink-850/90',
+        'inline-flex h-9 items-center justify-center rounded-xs border border-line/12 bg-ink-900/85 px-3 font-mono text-[10.5px] font-semibold tracking-[0.06em] text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-ink-850/90',
         className,
       )}
       {...rest}
     >
-      <Icon size={14} />
+      {label}
     </button>
   );
 }
@@ -545,12 +522,10 @@ function OverlayIconButton({
 /** The same control, but navigating rather than acting. */
 function OverlayLink({
   to,
-  icon: Icon,
   label,
   className,
 }: {
   to: string;
-  icon: typeof Play;
   label: string;
   className?: string;
 }) {
@@ -560,22 +535,20 @@ function OverlayLink({
       aria-label={label}
       title={label}
       className={cn(
-        'inline-flex size-9 items-center justify-center rounded-xs border border-line/12 bg-ink-900/85 text-mist-100 backdrop-blur-xl transition-colors hover:border-line/25 hover:bg-ink-850/90',
+        'inline-flex h-9 items-center justify-center rounded-xs border border-line/12 bg-ink-900/85 px-3 font-mono text-[10.5px] font-semibold tracking-[0.06em] text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-ink-850/90',
         className,
       )}
     >
-      <Icon size={14} />
+      Back
     </Link>
   );
 }
 
 function ControlButton({
-  icon: Icon,
   label,
   primary,
   ...rest
 }: {
-  icon: typeof Play;
   label: string;
   primary?: boolean;
 } & Omit<ComponentProps<'button'>, 'children'>) {
@@ -583,14 +556,13 @@ function ControlButton({
     <button
       type="button"
       className={cn(
-        'inline-flex h-9 items-center gap-1.5 rounded-xs border px-3 font-mono text-[10.5px] font-semibold tracking-[0.06em] uppercase backdrop-blur-xl transition-colors',
+        'inline-flex h-9 items-center gap-1.5 rounded-xs border px-3 font-mono text-[10.5px] font-semibold tracking-[0.06em] uppercase transition-colors',
         primary
           ? 'border-f1-red/50 bg-f1-red/20 text-mist-50 hover:bg-f1-red/30'
           : 'border-line/12 bg-ink-900/85 text-mist-100 hover:border-line/25 hover:bg-ink-850/90',
       )}
       {...rest}
     >
-      <Icon size={13} />
       {label}
     </button>
   );

@@ -1,13 +1,13 @@
 import { useMemo, useState } from 'react';
-import { Cake, Flag, Hash, Search, Trophy, X } from 'lucide-react';
 import { getDriverList, type DriverProfile } from '../api/f1Api';
 import { getTeamColor, getTeamName } from '../data/teams';
-import { getAge, initials, surname } from '../lib/format';
+import { getAge, surname } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { PageContainer, PageHeader } from '../components/ui/PageHeader';
 import { Panel } from '../components/ui/Panel';
 import { DriverAvatar, Flag as CountryFlag } from '../components/ui/Atoms';
+import { TeamDot } from '../components/ui/Badge';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { Skeleton } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
@@ -72,27 +72,22 @@ export default function Drivers() {
         {/* ---- Toolbar ---- */}
         <div className="mt-6 flex flex-col gap-3 sm:flex-row sm:items-center">
           <div className="relative flex-1">
-            <Search
-              size={14}
-              aria-hidden
-              className="pointer-events-none absolute top-1/2 left-3.5 -translate-y-1/2 text-mist-500"
-            />
             <input
               type="search"
               value={query}
               onChange={(e) => setQuery(e.target.value)}
               placeholder="Search drivers, teams or nationalities"
               aria-label="Search drivers"
-              className="h-10 w-full rounded-xs border border-line/10 bg-veil/[0.03] pr-10 pl-9 text-[12.5px] text-mist-100 placeholder:text-mist-600 focus:border-f1-red/50 focus:ring-1 focus:ring-f1-red/30 focus:outline-none"
+              className="h-10 w-full rounded-xs border border-line/10 bg-veil/[0.03] px-3.5 pr-16 text-[12.5px] text-mist-100 placeholder:text-mist-600 focus:border-f1-red/50 focus:ring-1 focus:ring-f1-red/30 focus:outline-none"
             />
             {hasQuery && (
               <button
                 type="button"
                 onClick={() => setQuery('')}
                 aria-label="Clear search"
-                className="absolute top-1/2 right-3 -translate-y-1/2 text-mist-500 transition-colors hover:text-mist-200"
+                className="absolute top-1/2 right-3 -translate-y-1/2 font-mono text-[10px] tracking-[0.08em] text-mist-500 uppercase transition-colors hover:text-mist-200"
               >
-                <X size={13} />
+                Clear
               </button>
             )}
           </div>
@@ -104,24 +99,23 @@ export default function Drivers() {
           >
             {(
               [
-                { key: 'number', label: 'Number', icon: Hash },
-                { key: 'name', label: 'Name', icon: Flag },
-                { key: 'age', label: 'Age', icon: Cake },
+                { key: 'number', label: 'Number' },
+                { key: 'name', label: 'Name' },
+                { key: 'age', label: 'Age' },
               ] as const
-            ).map(({ key, label, icon: Icon }) => (
+            ).map(({ key, label }) => (
               <button
                 key={key}
                 type="button"
                 onClick={() => setSort(key)}
                 aria-pressed={sort === key}
                 className={cn(
-                  'inline-flex h-7 items-center gap-1.5 rounded-xs px-2.5 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors',
+                  'inline-flex h-7 items-center rounded-xs px-2.5 font-mono text-[10px] tracking-[0.08em] uppercase transition-colors',
                   sort === key
                     ? 'bg-veil/10 text-mist-50'
                     : 'text-mist-500 hover:text-mist-200',
                 )}
               >
-                <Icon size={10} />
                 {label}
               </button>
             ))}
@@ -145,7 +139,6 @@ export default function Drivers() {
       ) : visible.length === 0 ? (
         <Panel className="mt-4">
           <EmptyState
-            icon={<Search size={18} />}
             title="No drivers match"
             description={`Nothing in the entry list matches “${query.trim()}”.`}
             action={
@@ -189,14 +182,8 @@ function DriverCard({ driver }: { driver: DriverProfile }) {
       {/* Livery stripe */}
       <span
         aria-hidden
-        className="absolute inset-y-0 left-0 w-0.5 transition-opacity duration-300 group-hover:opacity-100"
+        className="absolute inset-y-0 left-0 w-0.5"
         style={{ backgroundColor: color }}
-      />
-      {/* Team wash — .team-sheen derives its gradient from currentColor. */}
-      <span
-        aria-hidden
-        className="team-sheen pointer-events-none absolute inset-0 opacity-0 transition-opacity duration-500 group-hover:opacity-[0.09]"
-        style={{ color }}
       />
 
       <div className="relative flex items-center gap-4">
@@ -220,7 +207,7 @@ function DriverCard({ driver }: { driver: DriverProfile }) {
             className="mt-2 flex items-center gap-1.5 truncate text-[11px] font-semibold"
             style={{ color }}
           >
-            <Trophy size={10} className="shrink-0" />
+            <TeamDot color={color} />
             {team}
           </p>
         </div>
@@ -234,10 +221,6 @@ function DriverCard({ driver }: { driver: DriverProfile }) {
           </p>
         </div>
       </div>
-
-      <span className="num pointer-events-none absolute -top-3 -right-1 font-display text-[54px] leading-none font-black text-line/[0.05] select-none">
-        {initials(fullName)}
-      </span>
     </Panel>
   );
 }

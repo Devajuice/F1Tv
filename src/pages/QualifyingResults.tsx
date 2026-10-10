@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { StopCircle } from 'lucide-react';
 import {
   getQualifyingResult,
   getSchedule,
@@ -143,7 +142,7 @@ export default function QualifyingResults() {
 
       {/* ---- Pole sitter ---- */}
       {pole && (
-        <Panel className="notched relative mb-4 overflow-hidden">
+        <Panel className="relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
             <TrackMap
               circuit={race?.locality ?? ''}
@@ -151,10 +150,7 @@ export default function QualifyingResults() {
               className="size-16 sm:size-20"
             />
             <div className="min-w-0 flex-1">
-              <p className="eyebrow mb-2 flex items-center gap-2">
-                <span className="accent-bar inline-block h-3 w-1.5" />
-                Pole position
-              </p>
+              <p className="eyebrow mb-2">Pole position</p>
               <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
                 {pole.driverName}
               </h2>
@@ -190,7 +186,6 @@ export default function QualifyingResults() {
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
-            icon={<StopCircle size={18} />}
             title="No qualifying data"
             description="Qualifying times appear here once the session has been published."
           />

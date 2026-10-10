@@ -1,6 +1,7 @@
 import { getCountdownParts } from '../../lib/format';
 import { useNow } from '../../hooks/useAsync';
 import { cn } from '../../lib/cn';
+import { AnimatedNumber } from './AnimatedNumber';
 
 interface CountdownProps {
   target: string | Date | null;
@@ -56,14 +57,14 @@ export function Countdown({
             compact && 'min-w-8 py-1',
           )}
         >
-          <span
+          <AnimatedNumber
+            value={parts[unit]}
+            padStart={2}
             className={cn(
-              'num text-[15px] leading-none font-semibold text-mist-50 tabular-nums',
+              'text-[15px] font-semibold text-mist-50',
               compact && 'text-[13px]',
             )}
-          >
-            {String(parts[unit]).padStart(2, '0')}
-          </span>
+          />
           <span className="mt-1 font-mono text-[8px] leading-none tracking-[0.14em] text-mist-500">
             {LABELS[unit]}
           </span>
@@ -90,10 +91,10 @@ export function CountdownStat({
     parts.total <= 0
       ? 'NOW'
       : parts.days > 0
-        ? String(parts.days)
+        ? parts.days
         : parts.hours > 0
-          ? String(parts.hours)
-          : String(parts.minutes);
+          ? parts.hours
+          : parts.minutes;
 
   const unit =
     parts.total <= 0
@@ -108,9 +109,10 @@ export function CountdownStat({
 
   return (
     <div className={className}>
-      <p className="num text-3xl leading-none font-bold text-mist-50 sm:text-4xl">
-        {value}
-      </p>
+      <AnimatedNumber
+        value={value}
+        className="text-3xl font-bold text-mist-50 sm:text-4xl"
+      />
       <p className="mt-1.5 font-mono text-[10px] tracking-[0.14em] text-mist-400 uppercase">
         {parts.total <= 0 ? unit : `${unit} · ${label}`}
       </p>

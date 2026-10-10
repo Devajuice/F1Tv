@@ -1,16 +1,5 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import {
-  ArrowRight,
-  CalendarDays,
-  CloudRain,
-  Droplets,
-  Gauge,
-  Play,
-  Thermometer,
-  Timer,
-  Wind,
-} from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import { getSessionMeta } from '../data/sessions';
 import { getTeamColor } from '../data/teams';
@@ -116,10 +105,9 @@ export default function Home() {
             <PanelTitle eyebrow="Season" title="Next up" />
             <Link
               to="/calendar"
-              className="link-wipe flex shrink-0 items-center gap-1.5 text-[11px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
+              className="link-wipe shrink-0 text-[11px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
             >
               Full calendar
-              <ArrowRight size={12} />
             </Link>
           </div>
 
@@ -164,36 +152,21 @@ function Hero({
 
   return (
     <section
-      className={`notched relative overflow-hidden rounded-lg border transition-colors duration-500 ${
-        isLive
-          ? 'border-live/40 bg-linear-to-br from-live/12 via-ink-850 to-ink-850'
-          : 'border-line/8 bg-linear-to-br from-f1-red/8 via-ink-850 to-ink-850'
+      className={`relative overflow-hidden rounded-md border bg-ink-850 ${
+        isLive ? 'border-live/40' : 'border-line/10'
       }`}
     >
-      {/* Speed-line texture + corner bloom. */}
-      <div aria-hidden className="speedlines pointer-events-none absolute inset-0 opacity-60" />
-      <div
-        aria-hidden
-        className="pointer-events-none absolute -top-24 -right-24 size-80 rounded-full opacity-70 blur-3xl"
-        style={{
-          background: isLive
-            ? 'radial-gradient(circle, rgb(255 59 48 / 0.35), transparent 70%)'
-            : 'radial-gradient(circle, rgb(225 6 0 / 0.28), transparent 70%)',
-        }}
-      />
-
       <div className="relative p-6 sm:p-9 lg:p-11">
         <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
           <div className="min-w-0">
-            <p className="eyebrow mb-4 flex items-center gap-2.5">
-              <span className="accent-bar inline-block h-3 w-1.5" />
+            <p className="eyebrow mb-4">
               {new Date().getFullYear()} Formula 1 World Championship
             </p>
 
             <h1 className="font-display text-[clamp(2.4rem,8.5vw,4.75rem)] leading-[0.9] font-black tracking-[-0.05em] text-mist-50">
               {isLive ? (
                 <>
-                  <span className="text-f1-red-bright">ON AIR</span>
+                  ON AIR
                   <br />
                   RIGHT NOW
                 </>
@@ -201,7 +174,7 @@ function Hero({
                 <>
                   WATCH F1
                   <br />
-                  <span className="text-f1-red">LIVE</span>
+                  LIVE
                 </>
               )}
             </h1>
@@ -233,7 +206,6 @@ function Hero({
 
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               <ButtonLink to="/stream" variant={isLive ? 'live' : 'primary'} size="lg">
-                <Play size={13} className="fill-current" />
                 {isLive ? 'Watch live now' : 'Watch live'}
               </ButtonLink>
               <ButtonLink to="/highlights" variant="secondary" size="lg">
@@ -276,36 +248,13 @@ function Hero({
             </div>
           ) : (
             <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <span className="eyebrow mr-1 inline-flex items-center gap-2">
-                <Gauge size={11} className="text-f1-red" />
-                Track
-              </span>
-              <WeatherStat
-                icon={<Thermometer size={12} />}
-                label="Air"
-                value={weather.air_temperature}
-                unit="°C"
-              />
-              <WeatherStat
-                icon={<Thermometer size={12} />}
-                label="Track"
-                value={weather.track_temperature}
-                unit="°C"
-              />
-              <WeatherStat
-                icon={<Droplets size={12} />}
-                label="Humidity"
-                value={weather.humidity}
-                unit="%"
-              />
-              <WeatherStat
-                icon={<Wind size={12} />}
-                label="Wind"
-                value={weather.wind_speed}
-                unit="km/h"
-              />
+              <span className="eyebrow mr-1">Track</span>
+              <WeatherStat label="Air" value={weather.air_temperature} unit="°C" />
+              <WeatherStat label="Track" value={weather.track_temperature} unit="°C" />
+              <WeatherStat label="Humidity" value={weather.humidity} unit="%" />
+              <WeatherStat label="Wind" value={weather.wind_speed} unit="km/h" />
               <span
-                className={`inline-flex items-center gap-1.5 rounded-xs border px-2 py-1 font-mono text-[9.5px] font-semibold tracking-[0.12em] uppercase ${
+                className={`inline-flex items-center rounded-xs border px-2 py-1 font-mono text-[9.5px] font-semibold tracking-[0.12em] uppercase ${
                   trackState === true
                     ? 'border-telemetry/40 bg-telemetry/12 text-telemetry'
                     : trackState === false
@@ -313,7 +262,6 @@ function Hero({
                       : 'border-line/12 bg-veil/5 text-mist-400'
                 }`}
               >
-                <CloudRain size={10} />
                 {trackState === true ? 'Wet' : trackState === false ? 'Dry' : 'Conditions n/a'}
               </span>
             </div>
@@ -325,19 +273,16 @@ function Hero({
 }
 
 function WeatherStat({
-  icon,
   label,
   value,
   unit,
 }: {
-  icon: React.ReactNode;
   label: string;
   value: number | null;
   unit: string;
 }) {
   return (
-    <span className="inline-flex items-center gap-2">
-      <span className="text-mist-500">{icon}</span>
+    <span className="inline-flex items-baseline gap-2">
       <span className="font-mono text-[10px] tracking-[0.1em] text-mist-500 uppercase">
         {label}
       </span>
@@ -425,7 +370,7 @@ function DriverStandingsList({ rows }: { rows: DriverStanding[] }) {
               <DriverAvatar number={row.driverNumber} name={row.driverName} color={color} size="sm" />
               <span className="min-w-0 flex-1">
                 <span className="flex items-baseline gap-2">
-                  <span className="truncate text-[13px] font-semibold text-mist-50 group-hover:text-f1-red-bright">
+                  <span className="truncate text-[13px] font-semibold text-mist-50 group-hover:text-mist-100">
                     {surname(row.driverName)}
                   </span>
                   <TeamDot color={color} />
@@ -541,7 +486,6 @@ function SessionQueue({
           <SkeletonRows rows={4} gap="gap-2" />
         ) : queue.length === 0 ? (
           <EmptyState
-            icon={<CalendarDays size={18} />}
             title="No sessions scheduled"
             description="The OpenF1 feed is not reporting any sessions for this season."
           />
@@ -567,8 +511,7 @@ function SessionQueue({
                     <span className="block truncate text-[12.5px] font-semibold text-mist-100">
                       {meta.label}
                     </span>
-                    <span className="mt-0.5 flex items-center gap-1.5 truncate font-mono text-[10px] text-mist-500">
-                      <Timer size={9} className="shrink-0" />
+                    <span className="mt-0.5 block truncate font-mono text-[10px] text-mist-500">
                       {formatShortDate(item.start)} · {formatTimeZoned(item.start)}
                     </span>
                   </span>
@@ -591,10 +534,9 @@ function SessionQueue({
           </span>
           <Link
             to="/schedule"
-            className="link-wipe inline-flex items-center gap-1.5 text-[10.5px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
+            className="link-wipe text-[10.5px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
           >
             All times
-            <ArrowRight size={11} />
           </Link>
         </div>
       </div>
@@ -620,18 +562,14 @@ function RaceCard({
       to="/calendar"
       className="group relative flex flex-col gap-4 p-5 transition-colors hover:bg-veil/[0.03] sm:p-6"
     >
-      {first && (
-        <span className="absolute top-0 left-0 h-full w-0.5 bg-linear-to-b from-f1-red to-f1-red/0" />
-      )}
-
       <div className="flex items-start justify-between gap-3">
         <div className="min-w-0">
           <p className="eyebrow mb-2 flex items-center gap-1.5">
             <Flag country={race.country} />
             Round {Number(race.round)}
-            {first && <span className="text-f1-red">· Next</span>}
+            {first && <span className="text-mist-400">· Next</span>}
           </p>
-          <h3 className="truncate text-[15px] font-semibold text-mist-50 group-hover:text-f1-red-bright">
+          <h3 className="truncate text-[15px] font-semibold text-mist-50 group-hover:text-mist-100">
             {race.raceName}
           </h3>
           <p className="mt-1 truncate text-[11.5px] text-mist-500">{race.circuitName}</p>

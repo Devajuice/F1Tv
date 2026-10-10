@@ -8,7 +8,6 @@ import {
   useState,
 } from 'react';
 import { createPortal } from 'react-dom';
-import { Check, ChevronDown, Search } from 'lucide-react';
 import { cn } from '../../lib/cn';
 
 export interface SelectOption {
@@ -225,13 +224,15 @@ export function Select({
             </span>
           )}
         </span>
-        <ChevronDown
-          size={14}
+        <span
+          aria-hidden
           className={cn(
-            'shrink-0 text-mist-400 transition-transform duration-300 ease-expo',
+            'shrink-0 text-[10px] text-mist-400 transition-transform duration-200 ease-swift',
             open && 'rotate-180 text-mist-200',
           )}
-        />
+        >
+          ▼
+        </span>
       </button>
 
       {open &&
@@ -249,11 +250,10 @@ export function Select({
               maxHeight: MAX_HEIGHT,
               zIndex: 90,
             }}
-            className="flex flex-col overflow-hidden rounded-md border border-line/12 bg-ink-850/98 shadow-[0_24px_60px_-20px_rgb(0_0_0/0.95)] backdrop-blur-2xl"
+            className="flex flex-col overflow-hidden rounded-md border border-line/12 bg-ink-850 shadow-[0_20px_50px_-24px_rgb(0_0_0/0.9)]"
           >
             {searchable && (
               <div className="hairline-b flex items-center gap-2 px-3 py-2.5">
-                <Search size={13} className="shrink-0 text-mist-500" />
                 <input
                   ref={inputRef}
                   value={query}
@@ -305,7 +305,9 @@ export function Select({
                       )}
                     </span>
                     {isSelected && (
-                      <Check size={13} className="shrink-0 text-f1-red" />
+                      <span aria-hidden className="shrink-0 text-[10px] text-mist-300">
+                        ●
+                      </span>
                     )}
                   </button>
                 );

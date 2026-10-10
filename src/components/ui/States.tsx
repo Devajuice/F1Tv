@@ -1,17 +1,40 @@
 import type { ReactNode } from 'react';
-import { AlertTriangle, Inbox, RotateCw } from 'lucide-react';
 import { Button } from './Button';
+import { Loader } from './Loader';
 import { cn } from '../../lib/cn';
+
+/** Centred loader block, the default mid-panel loading state. */
+export function LoadingState({
+  label = 'Loading',
+  variant = 'bar',
+  className,
+}: {
+  label?: string;
+  variant?: 'bar' | 'orbit' | 'pulse' | 'dots';
+  className?: string;
+}) {
+  return (
+    <div
+      className={cn(
+        'flex flex-col items-center justify-center gap-3 px-6 py-14',
+        className,
+      )}
+    >
+      <Loader variant={variant} label={label} />
+      <span className="font-mono text-[10px] tracking-[0.2em] text-mist-500 uppercase">
+        {label}
+      </span>
+    </div>
+  );
+}
 
 /** Nothing-in-the-list state. */
 export function EmptyState({
-  icon,
   title,
   description,
   action,
   className,
 }: {
-  icon?: ReactNode;
   title: string;
   description?: string;
   action?: ReactNode;
@@ -24,9 +47,6 @@ export function EmptyState({
         className,
       )}
     >
-      <div className="mb-4 flex size-11 items-center justify-center rounded-full border border-line/10 bg-veil/[0.04] text-mist-400">
-        {icon ?? <Inbox size={18} />}
-      </div>
       <h3 className="text-[14px] font-semibold text-mist-100">{title}</h3>
       {description && (
         <p className="mt-1.5 max-w-sm text-[12.5px] leading-relaxed text-mist-500">
@@ -53,13 +73,11 @@ export function ErrorState({
   return (
     <EmptyState
       className={className}
-      icon={<AlertTriangle size={18} className="text-sodium" />}
       title={title}
       description={message ?? 'The upstream timing provider did not respond. Try again in a moment.'}
       action={
         onRetry && (
           <Button variant="secondary" size="sm" onClick={onRetry}>
-            <RotateCw size={12} />
             Retry
           </Button>
         )
@@ -90,15 +108,18 @@ export function RefreshHint({
 
   return (
     <div className={cn('flex items-center gap-2', className)}>
-      <span className="font-mono text-[10px] text-mist-500">{label}</span>
+      {busy ? (
+        <Loader variant="pulse" label="Refreshing" className="mr-0.5" />
+      ) : (
+        <span className="font-mono text-[10px] text-mist-500">{label}</span>
+      )}
       <button
         type="button"
         onClick={onRefresh}
-        aria-label="Refresh"
-        className="rounded-sm p-1 text-mist-500 transition-colors hover:bg-veil/6 hover:text-mist-200 disabled:opacity-40"
         disabled={busy}
+        className="font-mono text-[10px] tracking-[0.08em] text-mist-400 uppercase transition-colors hover:text-mist-200 disabled:opacity-40"
       >
-        <RotateCw size={12} className={cn(busy && 'animate-spin')} />
+        {busy ? 'Refreshing' : 'Refresh'}
       </button>
     </div>
   );

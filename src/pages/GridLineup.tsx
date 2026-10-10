@@ -1,5 +1,4 @@
 import { useEffect, useMemo, useState } from 'react';
-import { Grid3x3 } from 'lucide-react';
 import {
   getGridLineup,
   getSchedule,
@@ -91,14 +90,11 @@ export default function GridLineup() {
       />
 
       {pole && race && (
-        <Panel className="notched relative mb-4 overflow-hidden">
+        <Panel className="relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
             <TrackMap circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
             <div className="min-w-0 flex-1">
-              <p className="eyebrow mb-2 flex items-center gap-2">
-                <span className="accent-bar inline-block h-3 w-1.5" />
-                Pole sitter
-              </p>
+              <p className="eyebrow mb-2">Pole sitter</p>
               <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
                 {pole.driverName}
               </h2>
@@ -128,7 +124,6 @@ export default function GridLineup() {
           </div>
         ) : grid.length === 0 ? (
           <EmptyState
-            icon={<Grid3x3 size={18} />}
             title="Grid not set"
             description="The starting grid appears once qualifying has been completed and classified."
           />
@@ -136,11 +131,11 @@ export default function GridLineup() {
           <div className="p-4 sm:p-6">
             {/* ---- Start line ---- */}
             <div className="mb-3 flex items-center gap-3">
-              <span className="h-px flex-1 bg-linear-to-r from-transparent via-line/20 to-transparent" />
+              <span className="h-px flex-1 bg-line/12" />
               <span className="font-mono text-[9.5px] font-semibold tracking-[0.24em] text-mist-500 uppercase">
                 Start
               </span>
-              <span className="h-px flex-1 bg-linear-to-r from-transparent via-line/20 to-transparent" />
+              <span className="h-px flex-1 bg-line/12" />
             </div>
 
             {/* ---- Track formation (desktop) ---- */}
@@ -156,7 +151,7 @@ export default function GridLineup() {
                   <div className="relative">
                     <span
                       aria-hidden
-                      className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-linear-to-b from-line/18 to-transparent"
+                      className="absolute inset-y-0 left-1/2 w-px -translate-x-1/2 bg-line/12"
                     />
                     <span className="num absolute inset-y-0 left-1/2 flex -translate-x-1/2 items-center font-mono text-[10px] text-mist-600">
                       {left && right ? rowIndex + 1 : ''}

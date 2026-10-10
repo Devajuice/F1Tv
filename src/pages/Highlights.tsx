@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { ExternalLink, Eye, Play, Zap, Flag, Timer } from 'lucide-react';
 import {
   fetchAllHighlights,
   type HighlightType,
@@ -15,12 +14,11 @@ import { ArticlePlaceholder } from '../components/ui/Atoms';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { Skeleton } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
-import { cn } from '../lib/cn';
 
-const TABS: Array<{ value: HighlightType; label: string; icon: typeof Zap }> = [
-  { value: 'race', label: 'Race', icon: Zap },
-  { value: 'sprint', label: 'Sprint', icon: Timer },
-  { value: 'qualifying', label: 'Qualifying', icon: Flag },
+const TABS: Array<{ value: HighlightType; label: string }> = [
+  { value: 'race', label: 'Race' },
+  { value: 'sprint', label: 'Sprint' },
+  { value: 'qualifying', label: 'Qualifying' },
 ];
 
 /** Videos per page. */
@@ -110,7 +108,6 @@ export default function Highlights() {
       ) : videos.length === 0 ? (
         <Panel className="mt-4">
           <EmptyState
-            icon={<Play size={18} />}
             title={`No ${TABS.find((t) => t.value === tab)?.label.toLowerCase()} highlights yet`}
             description="Highlight videos are published after each session. Check back shortly, or watch the live stream."
             action={
@@ -118,10 +115,9 @@ export default function Highlights() {
                 href={CHANNEL_URL}
                 target="_blank"
                 rel="noreferrer noopener"
-                className="inline-flex h-8 items-center gap-1.5 rounded-xs border border-line/12 bg-veil/5 px-3 text-[10px] font-semibold tracking-[0.08em] text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-veil/10"
+                className="inline-flex h-8 items-center rounded-xs border border-line/12 bg-veil/5 px-3 text-[10px] font-semibold tracking-[0.08em] text-mist-100 uppercase transition-colors hover:border-line/25 hover:bg-veil/10"
               >
                 Open the F1 YouTube channel
-                <ExternalLink size={11} />
               </a>
             }
           />
@@ -188,10 +184,7 @@ function Feature({ video }: { video: YoutubeVideo }) {
       </div>
 
       <div className="relative -mt-10 px-5 pb-5 sm:px-6 sm:pb-6">
-        <p className="eyebrow mb-2 flex items-center gap-2">
-          <span className="accent-bar inline-block h-3 w-1.5" />
-          Latest · {timeAgo(video.published)}
-        </p>
+        <p className="eyebrow mb-2">Latest · {timeAgo(video.published)}</p>
         <h2 className="line-clamp-2 max-w-2xl font-display text-lg leading-tight font-extrabold tracking-[-0.02em] text-mist-50 sm:text-xl">
           {video.title}
         </h2>
@@ -227,18 +220,13 @@ function Card({ video }: { video: YoutubeVideo }) {
           className="absolute inset-0 bg-ink-950/0 transition-colors duration-300 group-hover:bg-ink-950/35"
         />
         <span
-          className={cn(
-            'absolute inset-0 flex items-center justify-center opacity-0 transition-opacity duration-300 group-hover:opacity-100',
-          )}
+          className="absolute inset-0 flex items-center justify-center font-mono text-[10px] font-semibold tracking-[0.14em] text-mist-50 uppercase opacity-0 transition-opacity duration-300 group-hover:opacity-100"
         >
-          <span className="flex size-11 items-center justify-center rounded-full bg-f1-red text-white shadow-lg shadow-black/50">
-            <Play size={16} className="ml-0.5" fill="currentColor" />
-          </span>
+          Watch
         </span>
         {video.views && (
-          <span className="num absolute right-2 bottom-2 rounded-xs bg-ink-950/85 px-1.5 py-0.5 font-mono text-[9.5px] text-mist-200 backdrop-blur-sm">
-            <Eye size={9} className="mr-1 inline" />
-            {formatCompact(video.views)}
+          <span className="num absolute right-2 bottom-2 rounded-xs bg-ink-950/85 px-1.5 py-0.5 font-mono text-[9.5px] text-mist-200">
+            {formatCompact(video.views)} views
           </span>
         )}
       </div>
@@ -246,9 +234,8 @@ function Card({ video }: { video: YoutubeVideo }) {
       <p className="mt-2.5 line-clamp-2 text-[12.5px] leading-snug font-semibold text-mist-100 transition-colors group-hover:text-mist-50">
         {video.title}
       </p>
-      <p className="mt-1.5 flex items-center gap-1.5 font-mono text-[10px] text-mist-500">
+      <p className="mt-1.5 font-mono text-[10px] text-mist-500">
         {timeAgo(video.published)}
-        <ExternalLink size={9} className="opacity-0 transition-opacity group-hover:opacity-100" />
       </p>
     </a>
   );

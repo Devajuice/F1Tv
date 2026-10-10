@@ -1,10 +1,10 @@
 import { useEffect, useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
-import { Bell, CalendarDays, Clock, Moon, Sun } from 'lucide-react';
 import { getPracticeSchedule, getSchedule, type PracticeSession, type Race } from '../api/f1Api';
 import { getSessionMeta } from '../data/sessions';
 import { useSession } from '../context/SessionContext';
 import { useNotifications } from '../context/NotificationsContext';
+import { useTimeZone } from '../context/TimeZoneContext';
 import { useAsync } from '../hooks/useAsync';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import {
@@ -24,6 +24,11 @@ import { TrackMap } from '../components/ui/TrackMap';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { SkeletonRows } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
+import {
+  InteractiveTimeline,
+  type TimelineItem,
+} from '../components/ui/Timeline';
+import { MatrixClock } from '../components/ui/MatrixClock';
 import { cn } from '../lib/cn';
 
 export default function PracticeSchedule() {
@@ -31,6 +36,7 @@ export default function PracticeSchedule() {
   const [round, setRound] = useState('');
   const { live } = useSession();
   const notifications = useNotifications();
+  const zone = useTimeZone();
 
   const { data: races, loading: loadingRaces } = useAsync<Race[]>(
     () => getSchedule(),
@@ -69,6 +75,72 @@ export default function PracticeSchedule() {
   const rows = sessions ?? [];
   const liveSessionName = live?.session_name;
 
+  const circuitTz = race ? { timeZone: zone.resolve(race.locality) } : undefined;
+
+  const timelineItems: TimelineItem[] = rows.map((session) => {
+    const start = joinDateTime(session.date, session.time);
+    const meta = getSessionMeta(session.name);
+    const isLive = liveSessionName === session.name;
+    const isPast = start ? start.getTime() + 90 * 60_000 < Date.now() : false;
+
+    return {
+      id: `${session.name}-${session.date}`,
+      label: meta.label,
+      accessory: (
+        <span className="flex shrink-0 items-center gap-2">
+          <span
+            className={cn(
+              'num flex h-9 w-14 items-center justify-center rounded-xs border font-mono text-[10.5px] font-bold tracking-[0.02em]',
+              meta.surface,
+              meta.color,
+            )}
+          >
+            {meta.badge}
+          </span>
+          {isLive && <LiveDot label="" />}
+        </span>
+      ),
+      meta: (
+        <>
+          {formatDate(start)} · {relativeDayLabel(start)}
+        </>
+      ),
+      time: (
+        <>
+          <span className="num block text-[16px] leading-none font-bold text-mist-50">
+            {formatTimeZoned(start)}
+          </span>
+          <span className="mt-1 block font-mono text-[9.5px] text-mist-500">
+            your time
+          </span>
+        </>
+      ),
+      status: isLive ? 'active' : isPast ? 'done' : 'upcoming',
+      detail: (
+        <dl className="grid grid-cols-2 gap-x-6 gap-y-3 text-[12px]">
+          <div>
+            <dt className="eyebrow mb-1">Your time</dt>
+            <dd className="text-mist-200">
+              {formatTimeZoned(start)}
+              <span className="mt-0.5 block text-[11px] text-mist-500">
+                {formatDate(start)}
+              </span>
+            </dd>
+          </div>
+          <div>
+            <dt className="eyebrow mb-1">At the circuit</dt>
+            <dd className="text-mist-200">
+              {formatTimeZoned(start, circuitTz)}
+              <span className="mt-0.5 block text-[11px] text-mist-500">
+                {race?.locality ?? 'Circuit'}
+              </span>
+            </dd>
+          </div>
+        </dl>
+      ),
+    };
+  });
+
   return (
     <PageContainer className="pt-6 sm:pt-8">
       <PageHeader
@@ -91,12 +163,11 @@ export default function PracticeSchedule() {
       />
 
       {race && (
-        <Panel className="notched relative mb-4 overflow-hidden">
+        <Panel className="relative mb-4 overflow-hidden">
           <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
             <TrackMap circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
             <div className="min-w-0 flex-1">
-              <p className="eyebrow mb-2 flex items-center gap-2">
-                <span className="accent-bar inline-block h-3 w-1.5" />
+              <p className="eyebrow mb-2">
                 Round {Number(race.round)} · {race.locality}
               </p>
               <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
@@ -122,6 +193,20 @@ export default function PracticeSchedule() {
         </Panel>
       )}
 
+      {/* ---- Weekend clock ---- */}
+      <Panel className="mb-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="eyebrow mb-1.5">Weekend clock</p>
+          <p className="text-[12.5px] text-mist-400">
+            Your local time, live. Every session below is shown on the same clock.
+          </p>
+        </div>
+        <MatrixClock
+          withSeconds
+          className="h-10 w-auto text-f1-red-bright sm:h-12"
+        />
+      </Panel>
+
       {/* ---- Session list ---- */}
       <Panel flush>
         {error ? (
@@ -132,80 +217,19 @@ export default function PracticeSchedule() {
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
-            icon={<CalendarDays size={18} />}
             title="No session times yet"
             description="Practice, qualifying and race times are published closer to the weekend."
           />
         ) : (
-          <ul className="divide-y divide-line/[0.05]">
-            {rows.map((session) => {
-              const start = joinDateTime(session.date, session.time);
-              const meta = getSessionMeta(session.name);
-              const isLive = liveSessionName === session.name;
-              const isPast = start ? start.getTime() + 90 * 60_000 < Date.now() : false;
-
-              return (
-                <li
-                  key={`${session.name}-${session.date}`}
-                  className={cn(
-                    'flex flex-wrap items-center gap-x-4 gap-y-3 px-4 py-3.5 transition-colors sm:px-6',
-                    isLive
-                      ? 'bg-live/8'
-                      : isPast
-                        ? 'opacity-45'
-                        : 'hover:bg-veil/[0.025]',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'num flex h-10 w-16 shrink-0 items-center justify-center rounded-xs border font-mono text-[10.5px] font-bold tracking-[0.02em]',
-                      meta.surface,
-                      meta.color,
-                    )}
-                  >
-                    {meta.badge}
-                  </span>
-
-                  <span className="min-w-40 flex-1">
-                    <span className="block text-[13.5px] font-semibold text-mist-50">
-                      {meta.label}
-                    </span>
-                    <span className="mt-1 flex items-center gap-1.5 font-mono text-[10.5px] text-mist-500">
-                      <Clock size={9} />
-                      {formatDate(start)} · {relativeDayLabel(start)}
-                    </span>
-                  </span>
-
-                  {isLive && <LiveDot label="Live" className="shrink-0" />}
-
-                  <span className="ml-auto shrink-0 text-right">
-                    <span className="num block text-[17px] leading-none font-bold text-mist-50">
-                      {formatTimeZoned(start)}
-                    </span>
-                    <span className="mt-1 block font-mono text-[9.5px] text-mist-500">
-                      your time
-                    </span>
-                  </span>
-                </li>
-              );
-            })}
-          </ul>
+          <div className="px-2 py-2 sm:px-3">
+            <InteractiveTimeline items={timelineItems} />
+          </div>
         )}
       </Panel>
 
       {/* ---- Notification prompt ---- */}
       <Panel className="mt-4 flex flex-col gap-4 sm:flex-row sm:items-center sm:justify-between">
         <div className="flex items-start gap-3.5">
-          <span
-            className={cn(
-              'flex size-10 shrink-0 items-center justify-center rounded-full border',
-              notifications.enabled
-                ? 'border-turf/35 bg-turf/10 text-turf'
-                : 'border-line/10 bg-veil/[0.04] text-mist-400',
-            )}
-          >
-            <Bell size={16} />
-          </span>
           <div className="min-w-0">
             <p className="text-[13.5px] font-semibold text-mist-50">
               {notifications.enabled
@@ -236,13 +260,8 @@ export default function PracticeSchedule() {
       </Panel>
 
       {/* ---- Day/night note ---- */}
-      <p className="mt-4 flex items-center justify-center gap-4 text-center font-mono text-[10px] text-mist-600">
-        <span className="inline-flex items-center gap-1.5">
-          <Sun size={10} /> Day sessions
-        </span>
-        <span className="inline-flex items-center gap-1.5">
-          <Moon size={10} /> Night races converted to local time
-        </span>
+      <p className="mt-4 flex flex-wrap items-center justify-center gap-4 text-center font-mono text-[10px] text-mist-600">
+        <span>Day sessions · Night races converted to local time</span>
         <Link to="/calendar" className="link-wipe text-mist-400 hover:text-mist-200">
           Full calendar
         </Link>

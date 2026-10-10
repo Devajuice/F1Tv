@@ -1,6 +1,5 @@
 import { useEffect, useMemo, useState } from 'react';
 import { useSearchParams } from 'react-router-dom';
-import { Minus, TrendingDown, TrendingUp, Zap } from 'lucide-react';
 import {
   getRaceResult,
   getSprintResult,
@@ -137,12 +136,11 @@ export default function RaceResults() {
 
       {/* ---- Event summary ---- */}
       {race && (
-        <Panel className="notched relative mb-4 overflow-hidden">
-          <div className="relative flex flex-col gap-5 sm:flex-row sm:items-center">
+        <Panel className="mb-4">
+          <div className="flex flex-col gap-5 sm:flex-row sm:items-center">
             <TrackMap circuit={race.locality} round={race.round} className="size-16 sm:size-20" />
             <div className="min-w-0 flex-1">
-              <p className="eyebrow mb-2 flex items-center gap-2">
-                <span className="accent-bar inline-block h-3 w-1.5" />
+              <p className="eyebrow mb-2">
                 {isSprint ? 'Sprint' : 'Grand Prix'} · Round {Number(race.round)}
               </p>
               <h2 className="font-display text-xl leading-tight font-extrabold tracking-[-0.03em] text-mist-50 sm:text-2xl">
@@ -169,7 +167,6 @@ export default function RaceResults() {
             const delta = positionDelta(row.grid, row.position);
             return (
               <Panel key={row.driverId} className={cn('relative overflow-hidden', i === 0 && 'sm:order-first')}>
-                {i === 0 && <span aria-hidden className="accent-bar absolute inset-y-0 left-0 w-1" />}
                 <div className="flex items-center gap-3.5">
                   <PositionCell position={row.positionText} />
                   <div className="min-w-0 flex-1">
@@ -217,10 +214,9 @@ export default function RaceResults() {
               )}
             </div>
             {fastest?.fastestLap && (
-              <span className="inline-flex items-center gap-1.5 rounded-xs border border-purple-fp/35 bg-purple-fp/10 px-2 py-1 font-mono text-[9.5px] tracking-[0.1em] text-purple-fp uppercase">
-                <Zap size={10} />
-                Fastest lap {fastest.fastestLap.time} · {surname(fastest.driverName)}
-              </span>
+              <span className="inline-flex items-center rounded-xs border border-purple-fp/35 bg-purple-fp/10 px-2 py-1 font-mono text-[9.5px] tracking-[0.1em] text-purple-fp uppercase">
+            Fastest lap {fastest.fastestLap.time} · {surname(fastest.driverName)}
+          </span>
             )}
           </div>
         </div>
@@ -233,8 +229,7 @@ export default function RaceResults() {
           </div>
         ) : rows.length === 0 ? (
           <EmptyState
-            icon={isSprint ? <Zap size={18} /> : undefined}
-            title={
+              title={
               isSprint
                 ? 'No Sprint at this round'
                 : 'No classification yet'
@@ -319,9 +314,8 @@ export default function RaceResults() {
 function DeltaBadge({ delta, compact }: { delta: number; compact?: boolean }) {
   if (delta === 0) {
     return (
-      <span className="inline-flex items-center gap-1 font-mono text-[10.5px] text-mist-600">
-        <Minus size={10} />
-        {!compact && <span>No change</span>}
+      <span className={cn('font-mono text-[10.5px] text-mist-600', !compact && 'inline-flex items-center gap-1')}>
+        {compact ? '—' : 'No change'}
       </span>
     );
   }
@@ -329,13 +323,12 @@ function DeltaBadge({ delta, compact }: { delta: number; compact?: boolean }) {
   return (
     <span
       className={cn(
-        'inline-flex items-center gap-1 font-mono font-semibold',
+        'font-mono font-semibold',
         compact ? 'text-[11.5px]' : 'text-[12px]',
         gained ? 'text-turf' : 'text-f1-red-bright',
       )}
       title={gained ? 'Positions gained' : 'Positions lost'}
     >
-      {gained ? <TrendingUp size={compact ? 11 : 12} /> : <TrendingDown size={compact ? 11 : 12} />}
       {gained ? '+' : ''}
       {delta}
     </span>

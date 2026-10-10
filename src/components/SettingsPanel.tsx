@@ -1,6 +1,5 @@
 import { useEffect, useState } from 'react';
 import type { ReactNode } from 'react';
-import { Monitor, Moon, Sun } from 'lucide-react';
 import { useTheme, type ThemePreference } from '../context/ThemeContext';
 import {
   COMMON_TIME_ZONES,
@@ -9,16 +8,18 @@ import {
   useTimeZone,
   type TimeZoneMode,
 } from '../context/TimeZoneContext';
+import { useNotifications } from '../context/NotificationsContext';
 import { formatZoneName } from '../lib/format';
-import { Modal } from './ui/Modal';
+import { MorphingDialog } from './ui/MorphingDialog';
 import { Panel } from './ui/Panel';
-import { Select } from './ui/Select';
+import { SpringSelect } from './ui/SpringSelect';
+import { Button } from './ui/Button';
 import { cn } from '../lib/cn';
 
-const THEME_OPTIONS: { value: ThemePreference; label: string; icon: typeof Sun }[] = [
-  { value: 'dark', label: 'Dark', icon: Moon },
-  { value: 'light', label: 'Light', icon: Sun },
-  { value: 'system', label: 'System', icon: Monitor },
+const THEME_OPTIONS: { value: ThemePreference; label: string }[] = [
+  { value: 'dark', label: 'Dark' },
+  { value: 'light', label: 'Light' },
+  { value: 'system', label: 'System' },
 ];
 
 const ZONE_OPTIONS: TimeZoneMode[] = ['local', 'circuit', 'custom'];
@@ -33,16 +34,17 @@ function Section({ title, children }: { title: string; children: ReactNode }) {
 }
 
 /**
- * Display preferences.
+ * Display preferences and session alerts.
  *
- * Theme and time zone are the two settings that change what every timestamp on
- * the site means, so they live together in one dialog rather than as two
- * scattered toggles. Opened from the header on desktop and from the footer on
- * mobile, since the header's mobile layout has no room for a fourth action.
+ * Everything that changes what the site shows or how it behaves lives here:
+ * theme, time zone and the notification opt-in. Consolidating the alert control
+ * means the header stays a thin navigation bar, and the whole thing stays
+ * reachable on a phone where the header collapses.
  */
 export default function SettingsPanel({ open, onClose }: { open: boolean; onClose: () => void }) {
   const { preference, setPreference, theme } = useTheme();
   const { mode, setMode, customTimeZone, setCustomTimeZone, deviceTimeZone } = useTimeZone();
+  const notifications = useNotifications();
 
   // The zone picker lists the device zone first so the common case of "just
   // like my device, but said explicitly" is one tap away.
@@ -53,7 +55,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
   }, [open, customTimeZone]);
 
   return (
-    <Modal open={open} onClose={onClose} title="Display settings">
+    <MorphingDialog open={open} onClose={onClose} title="Display settings">
       <div className="flex flex-col gap-6">
         <Section title="Appearance">
           <div
@@ -61,7 +63,7 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
             aria-label="Theme"
             className="grid grid-cols-3 gap-1.5 rounded-md bg-veil/[0.04] p-1"
           >
-            {THEME_OPTIONS.map(({ value, label, icon: Icon }) => {
+            {THEME_OPTIONS.map(({ value, label }) => {
               const active = preference === value;
               return (
                 <button
@@ -71,13 +73,12 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   aria-checked={active}
                   onClick={() => setPreference(value)}
                   className={cn(
-                    'flex flex-col items-center gap-1.5 rounded-sm px-3 py-2.5 text-[11px] font-semibold transition-all duration-250',
+                    'rounded-sm px-3 py-2.5 text-[11px] font-semibold transition-colors duration-200',
                     active
-                      ? 'bg-ink-800 text-mist-50 shadow-[var(--shadow-card)]'
+                      ? 'bg-ink-800 text-mist-50'
                       : 'text-mist-400 hover:bg-veil/6 hover:text-mist-200',
                   )}
                 >
-                  <Icon size={15} className={active ? 'text-f1-red' : undefined} />
                   {label}
                 </button>
               );
@@ -102,9 +103,9 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
                   aria-checked={active}
                   onClick={() => setMode(value)}
                   className={cn(
-                    'rounded-sm px-2 py-2.5 text-[11px] font-semibold transition-all duration-250',
+                    'rounded-sm px-2 py-2.5 text-[11px] font-semibold transition-colors duration-200',
                     active
-                      ? 'bg-ink-800 text-mist-50 shadow-[var(--shadow-card)]'
+                      ? 'bg-ink-800 text-mist-50'
                       : 'text-mist-400 hover:bg-veil/6 hover:text-mist-200',
                   )}
                 >
@@ -130,9 +131,8 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
 
           {mode === 'custom' && (
             <div className="mt-3">
-              <Select
+              <SpringSelect
                 label="Zone"
-                searchable={false}
                 value={customDraft}
                 onChange={(zone) => {
                   setCustomDraft(zone);
@@ -151,10 +151,36 @@ export default function SettingsPanel({ open, onClose }: { open: boolean; onClos
           )}
         </Section>
 
+        <Section title="Session alerts">
+          <p className="text-[12px] leading-relaxed text-mist-400">
+            {notifications.enabled
+              ? "We'll notify you 5 minutes before each session and again when it goes live."
+              : notifications.state === 'denied'
+                ? 'Alerts are blocked for this site. Re-allow them in your browser settings, then reload.'
+                : notifications.state === 'unsupported'
+                  ? 'This browser does not support session alerts.'
+                  : 'Get a browser alert 5 minutes before each session, and one when it goes live.'}
+          </p>
+          {notifications.state !== 'denied' && notifications.state !== 'unsupported' && (
+            <Button
+              size="sm"
+              variant="secondary"
+              className="mt-3"
+              onClick={() =>
+                notifications.enabled
+                  ? notifications.disable()
+                  : void notifications.enable()
+              }
+            >
+              {notifications.enabled ? 'Turn off alerts' : 'Enable alerts'}
+            </Button>
+          )}
+        </Section>
+
         <p className="text-[11px] leading-relaxed text-mist-500">
           Saved on this device. Nothing is sent anywhere.
         </p>
       </div>
-    </Modal>
+    </MorphingDialog>
   );
 }

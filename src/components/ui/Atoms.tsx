@@ -1,5 +1,4 @@
 import type { ReactNode } from 'react';
-import { Flag as FlagIcon } from 'lucide-react';
 import { countryFlag, initials } from '../../lib/format';
 import { cn } from '../../lib/cn';
 
@@ -134,31 +133,18 @@ export function Meter({
   );
 }
 
-/** Full-width chequered flag divider — a light broadcast motif. */
-export function ChequerDivider({ className }: { className?: string }) {
-  return (
-    <div
-      aria-hidden
-      className={cn('h-1.5 w-full opacity-25', className)}
-      style={{
-        backgroundImage:
-          'repeating-conic-gradient(#fff 0% 25%, #000 0% 50%)',
-        backgroundSize: '12px 12px',
-      }}
-    />
-  );
-}
-
-/** Placeholder icon tile for news with no usable thumbnail. */
+/** Placeholder tile for a story with no usable thumbnail. */
 export function ArticlePlaceholder({ className }: { className?: string }) {
   return (
     <div
       className={cn(
-        'flex size-full items-center justify-center bg-linear-to-br from-ink-800 to-ink-900 text-mist-500',
+        'flex size-full items-center justify-center bg-ink-800',
         className,
       )}
     >
-      <FlagIcon size={20} />
+      <span className="font-display text-[13px] font-bold tracking-[0.18em] text-mist-600 uppercase">
+        F1
+      </span>
     </div>
   );
 }

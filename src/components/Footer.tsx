@@ -1,5 +1,4 @@
 import { Link } from 'react-router-dom';
-import { ExternalLink } from 'lucide-react';
 import { getTeam, allTeams } from '../data/teams';
 
 // The mobile tab bar only surfaces four destinations, so this list is the
@@ -24,11 +23,9 @@ export default function Footer() {
         <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr]">
           {/* Brand */}
           <div>
-            <div aria-hidden className="flex flex-col gap-[3px] skew-x-[-18deg]">
-              <span className="h-[3px] w-6 rounded-[1px] bg-f1-red" />
-              <span className="h-[3px] w-4 rounded-[1px] bg-mist-100" />
-              <span className="h-[3px] w-2.5 rounded-[1px] bg-mist-500" />
-            </div>
+            <p className="font-display text-[18px] font-black tracking-[-0.04em] text-mist-50">
+              F1TV
+            </p>
             <p className="mt-3 max-w-xs text-[12.5px] leading-relaxed text-mist-500">
               Live Formula 1 streaming, timing, weather and championship data.
               Built on the Jolpica and OpenF1 open feeds.
@@ -85,20 +82,18 @@ export default function Footer() {
               href="https://jolpi.ca/ergast/f1/"
               target="_blank"
               rel="noreferrer noopener"
-              className="link-wipe inline-flex items-center gap-1 text-mist-300"
+              className="link-wipe text-mist-300"
             >
               Jolpica
-              <ExternalLink size={9} />
             </a>
             {' · '}
             <a
               href="https://openf1.org/"
               target="_blank"
               rel="noreferrer noopener"
-              className="link-wipe inline-flex items-center gap-1 text-mist-300"
+              className="link-wipe text-mist-300"
             >
               OpenF1
-              <ExternalLink size={9} />
             </a>
           </p>
           <p className="font-mono text-[10.5px] text-mist-500">
@@ -107,7 +102,7 @@ export default function Footer() {
               href="https://github.com/Devajuice"
               target="_blank"
               rel="noreferrer noopener"
-              className="link-wipe text-f1-red"
+              className="link-wipe text-mist-100"
             >
               Devajuice
             </a>

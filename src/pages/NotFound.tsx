@@ -1,14 +1,13 @@
 import { Link } from 'react-router-dom';
-import { ArrowLeft, CalendarDays, Home as HomeIcon, Radio } from 'lucide-react';
 import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { PageContainer } from '../components/ui/PageHeader';
 import { Panel } from '../components/ui/Panel';
 import { ButtonLink } from '../components/ui/Button';
 
 const SUGGESTIONS = [
-  { to: '/home', label: 'Dashboard', icon: HomeIcon, hint: 'Live timing, weather and standings' },
-  { to: '/calendar', label: 'Calendar', icon: CalendarDays, hint: 'Every round of the season' },
-  { to: '/stream', label: 'Watch live', icon: Radio, hint: 'Stream the session' },
+  { to: '/home', label: 'Dashboard', hint: 'Live timing, weather and standings' },
+  { to: '/calendar', label: 'Calendar', hint: 'Every round of the season' },
+  { to: '/stream', label: 'Watch live', hint: 'Stream the session' },
 ] as const;
 
 export default function NotFound() {
@@ -17,8 +16,6 @@ export default function NotFound() {
   return (
     <PageContainer className="flex min-h-[70vh] items-center justify-center py-12">
       <div className="w-full max-w-lg text-center">
-        <p className="speedlines mb-6" aria-hidden />
-
         <p className="eyebrow mb-3 justify-center">Error 404</p>
         <p className="num font-display text-[80px] leading-none font-black tracking-[-0.05em] text-transparent [-webkit-text-stroke:1.5px_rgba(255,255,255,0.16)] sm:text-[120px]">
           404
@@ -34,7 +31,6 @@ export default function NotFound() {
 
         <div className="mt-7 flex flex-wrap items-center justify-center gap-2.5">
           <ButtonLink to="/home" variant="primary" size="md">
-            <ArrowLeft size={13} />
             Back to the paddock
           </ButtonLink>
           <ButtonLink to="/calendar" variant="secondary" size="md">
@@ -45,15 +41,12 @@ export default function NotFound() {
         <Panel className="mt-10 text-left">
           <p className="eyebrow mb-3">Try one of these</p>
           <ul className="flex flex-col gap-1.5">
-            {SUGGESTIONS.map(({ to, label, icon: Icon, hint }) => (
+            {SUGGESTIONS.map(({ to, label, hint }) => (
               <li key={to}>
                 <Link
                   to={to}
                   className="group flex items-center gap-3 rounded-xs px-2.5 py-2.5 transition-colors hover:bg-veil/[0.04]"
                 >
-                  <span className="flex size-8 shrink-0 items-center justify-center rounded-xs border border-line/10 bg-veil/[0.04] text-mist-400 transition-colors group-hover:border-f1-red/40 group-hover:text-f1-red-bright">
-                    <Icon size={14} />
-                  </span>
                   <span className="min-w-0 flex-1">
                     <span className="block text-[12.5px] font-semibold text-mist-100">
                       {label}

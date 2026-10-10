@@ -1,5 +1,4 @@
 import { useMemo, useState } from 'react';
-import { AlertTriangle, ArrowUpRight, Clock, Newspaper } from 'lucide-react';
 import { fetchNews, type NewsArticle } from '../api/news';
 import { timeAgo } from '../lib/format';
 import { useAsync } from '../hooks/useAsync';
@@ -7,6 +6,7 @@ import { useDocumentTitle } from '../hooks/useDocumentTitle';
 import { PageContainer, PageHeader } from '../components/ui/PageHeader';
 import { Panel } from '../components/ui/Panel';
 import { ArticlePlaceholder } from '../components/ui/Atoms';
+import { OriginDropdown } from '../components/ui/OriginDropdown';
 import { EmptyState, ErrorState, RefreshHint } from '../components/ui/States';
 import { Skeleton } from '../components/ui/Skeleton';
 import { Button } from '../components/ui/Button';
@@ -55,9 +55,8 @@ export default function News() {
       {data?.stale && (
         <div
           role="status"
-          className="mb-4 flex items-center gap-2 rounded-sm border border-sodium/40 bg-sodium/10 px-3.5 py-2.5 text-[12px] text-sodium"
+          className="mb-4 rounded-sm border border-sodium/40 bg-sodium/10 px-3.5 py-2.5 text-[12px] text-sodium"
         >
-          <AlertTriangle size={14} className="shrink-0" />
           The news feeds are unreachable right now — showing the last good copy.
         </div>
       )}
@@ -71,11 +70,23 @@ export default function News() {
         title="News"
         description="The latest Formula 1 headlines, aggregated from the specialist newsrooms and refreshed every ten minutes."
         actions={
-          <RefreshHint
-            at={lastFetchedAt}
-            onRefresh={refresh}
-            busy={refreshing}
-          />
+          <>
+            {sources.length > 1 && (
+              <OriginDropdown
+                items={[
+                  { value: ALL, label: 'All sources' },
+                  ...sources.map(([name]) => ({ value: name, label: name })),
+                ]}
+                value={source}
+                onChange={setSource}
+              />
+            )}
+            <RefreshHint
+              at={lastFetchedAt}
+              onRefresh={refresh}
+              busy={refreshing}
+            />
+          </>
         }
       >
         {sources.length > 1 && (
@@ -118,7 +129,6 @@ export default function News() {
       ) : visible.length === 0 ? (
         <Panel className="mt-4">
           <EmptyState
-            icon={<Newspaper size={18} />}
             title="No stories right now"
             description="The feeds are empty or unreachable at the moment. Try again shortly."
             action={
@@ -212,10 +222,6 @@ function Lead({ article }: { article: NewsArticle }) {
         </div>
 
         <div className="relative flex flex-col justify-center p-5 sm:p-7">
-          <span
-            aria-hidden
-            className="accent-bar absolute top-6 left-0 h-8 w-1 sm:top-8"
-          />
           <p className="eyebrow mb-3 flex items-center gap-2">
             {article.source}
             <span className="text-mist-600">·</span>
@@ -229,12 +235,8 @@ function Lead({ article }: { article: NewsArticle }) {
               {article.description}
             </p>
           )}
-          <p className="mt-4 inline-flex items-center gap-1.5 font-mono text-[10px] tracking-[0.1em] text-mist-500 uppercase group-hover:text-f1-red-bright">
-            Read story
-            <ArrowUpRight
-              size={12}
-              className="transition-transform group-hover:translate-x-0.5 group-hover:-translate-y-0.5"
-            />
+          <p className="mt-4 font-mono text-[10px] tracking-[0.1em] text-mist-500 uppercase transition-colors group-hover:text-mist-200">
+            Read story →
           </p>
         </div>
       </div>
@@ -266,11 +268,8 @@ function Row({ article }: { article: NewsArticle }) {
       <div className="flex min-w-0 flex-1 flex-col justify-center">
         <p className="eyebrow mb-1.5 flex items-center gap-1.5">
           {article.source}
-          <span className="inline-flex items-center gap-1 normal-case">
-            <Clock size={9} />
-            <span className="num font-mono normal-case">
-              {timeAgo(article.pubDate)}
-            </span>
+          <span className="num font-mono normal-case">
+            {timeAgo(article.pubDate)}
           </span>
         </p>
         <h3 className="line-clamp-2 text-[12.5px] leading-snug font-semibold text-mist-100 transition-colors group-hover:text-mist-50">
