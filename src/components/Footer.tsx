@@ -18,32 +18,30 @@ const RESOURCES = [
 
 export default function Footer() {
   return (
-    <footer className="hairline-t mt-16 bg-ink-900/40 sm:mt-24">
-      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8">
-        <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-[1.4fr_1fr_1.2fr]">
-          {/* Brand */}
+    <footer className="mt-16 border-t border-line/10 sm:mt-24">
+      <div className="mx-auto max-w-7xl px-4 py-10 sm:px-6 lg:px-8 lg:py-12">
+        <div className="grid gap-8 rounded-2xl border border-line/10 bg-ink-850/35 p-6 backdrop-blur-sm sm:p-8 lg:grid-cols-[1.35fr_1fr_1.15fr]">
           <div>
-            <p className="font-display text-[18px] font-black tracking-[-0.04em] text-mist-50">
-              F1TV
+            <div className="flex items-center gap-3">
+              <span className="flex size-8 items-center justify-center rounded-md bg-f1-red text-[11px] font-black text-white">F1</span>
+              <p className="font-display text-[20px] font-black tracking-[-0.04em] text-mist-50">F1TV</p>
+            </div>
+            <p className="mt-4 max-w-sm text-[13px] leading-relaxed text-mist-400">
+              A redesigned Formula 1 companion for live streams, session timing, standings, results and highlights — fast, clear and built for race weekends.
             </p>
-            <p className="mt-3 max-w-xs text-[12.5px] leading-relaxed text-mist-500">
-              Live Formula 1 streaming, timing, weather and championship data.
-              Built on the Jolpica and OpenF1 open feeds.
-            </p>
-            <p className="mt-4 text-[11.5px] text-mist-600">
-              Not affiliated with Formula 1 or the FIA.
+            <p className="mt-4 font-mono text-[10.5px] tracking-[0.06em] text-mist-500 uppercase">
+              Unofficial fan project · Not affiliated with Formula 1 or the FIA
             </p>
           </div>
 
-          {/* Navigation */}
           <nav>
             <p className="eyebrow mb-3">Explore</p>
-            <ul className="grid grid-cols-2 gap-x-4 gap-y-1.5">
+            <ul className="grid grid-cols-2 gap-x-4 gap-y-2">
               {RESOURCES.map((item) => (
                 <li key={item.to}>
                   <Link
                     to={item.to}
-                    className="link-wipe inline-block text-[12.5px] text-mist-400 transition-colors hover:text-mist-100"
+                    className="link-wipe inline-block text-[13px] text-mist-300 transition-colors hover:text-mist-50"
                   >
                     {item.label}
                   </Link>
@@ -52,7 +50,6 @@ export default function Footer() {
             </ul>
           </nav>
 
-          {/* Team livery legend */}
           <div>
             <p className="eyebrow mb-3">Constructors</p>
             <ul className="flex flex-wrap gap-1.5">
@@ -60,13 +57,9 @@ export default function Footer() {
                 <li key={team.id}>
                   <span
                     title={getTeam(team.fullName).fullName}
-                    className="inline-flex items-center gap-1.5 rounded-xs border border-line/8 bg-veil/[0.03] px-1.5 py-1 text-[10.5px] text-mist-400"
+                    className="inline-flex items-center gap-1.5 rounded-full border border-line/10 bg-ink-900/30 px-2 py-1 text-[10.5px] text-mist-400"
                   >
-                    <span
-                      aria-hidden
-                      className="size-1.5 rounded-full"
-                      style={{ backgroundColor: team.color }}
-                    />
+                    <span aria-hidden className="size-1.5 rounded-full" style={{ backgroundColor: team.color }} />
                     {team.name}
                   </span>
                 </li>
@@ -75,35 +68,20 @@ export default function Footer() {
           </div>
         </div>
 
-        <div className="hairline-t mt-9 flex flex-col items-start justify-between gap-3 pt-6 sm:flex-row sm:items-center">
+        <div className="mt-5 flex flex-col items-start justify-between gap-3 px-1 sm:flex-row sm:items-center">
           <p className="font-mono text-[10.5px] tracking-[0.04em] text-mist-500">
             Data by{' '}
-            <a
-              href="https://jolpi.ca/ergast/f1/"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="link-wipe text-mist-300"
-            >
+            <a href="https://jolpi.ca/ergast/f1/" target="_blank" rel="noreferrer noopener" className="link-wipe text-mist-300">
               Jolpica
-            </a>
-            {' · '}
-            <a
-              href="https://openf1.org/"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="link-wipe text-mist-300"
-            >
+            </a>{' '}
+            ·{' '}
+            <a href="https://openf1.org/" target="_blank" rel="noreferrer noopener" className="link-wipe text-mist-300">
               OpenF1
             </a>
           </p>
           <p className="font-mono text-[10.5px] text-mist-500">
             Made by{' '}
-            <a
-              href="https://github.com/Devajuice"
-              target="_blank"
-              rel="noreferrer noopener"
-              className="link-wipe text-mist-100"
-            >
+            <a href="https://github.com/Devajuice" target="_blank" rel="noreferrer noopener" className="link-wipe text-mist-100">
               Devajuice
             </a>
           </p>

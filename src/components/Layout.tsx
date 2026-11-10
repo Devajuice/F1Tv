@@ -19,17 +19,19 @@ export function Layout({ children }: { children: ReactNode }) {
   return (
     <>
       <Header />
-      {/* pb clears the mobile tab bar; it is display:none from lg up, where
-          the floating pill returns to the top and nothing is pinned. */}
-      <div className="flex flex-1 flex-col pb-32 lg:pb-0">
+      <div className="flex flex-1 flex-col pb-[calc(6.5rem+env(safe-area-inset-bottom))] lg:pb-0">
         <motion.main
           variants={VARIANTS}
           initial="initial"
           animate="enter"
           exit="exit"
           transition={TRANSITION}
-          className="flex-1"
+          className="relative flex-1"
         >
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-x-0 top-0 -z-10 h-[420px] bg-[radial-gradient(700px_240px_at_50%_0%,var(--glow-red),transparent_70%)] opacity-70"
+          />
           {children}
         </motion.main>
         <Footer />

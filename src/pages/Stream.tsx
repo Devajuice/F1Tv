@@ -246,10 +246,20 @@ export default function Stream() {
         )}
       />
 
-      {/* Vignette so the overlay controls stay readable over bright footage */}
+      {/* Subtle legibility gradients for overlay controls; hidden when controls hide */}
       <span
         aria-hidden
-        className="pointer-events-none absolute inset-0 bg-linear-to-t from-ink-950/85 via-transparent to-ink-950/60"
+        className={cn(
+          'pointer-events-none absolute inset-x-0 top-0 h-28 bg-linear-to-b from-ink-950/70 to-transparent transition-opacity duration-400',
+          showControls ? 'opacity-100' : 'opacity-0',
+        )}
+      />
+      <span
+        aria-hidden
+        className={cn(
+          'pointer-events-none absolute inset-x-0 bottom-0 h-40 bg-linear-to-t from-ink-950/75 to-transparent transition-opacity duration-400',
+          showControls ? 'opacity-100' : 'opacity-0',
+        )}
       />
 
       {/* ------------------------- Loading state -------------------------- */}

@@ -1,5 +1,6 @@
 import { useMemo, useState } from 'react';
 import { Link } from 'react-router-dom';
+import { ArrowRight, CalendarClock, Flag as FlagIcon, Gauge, TvMinimalPlay, Users } from 'lucide-react';
 import { useSession } from '../context/SessionContext';
 import { getSessionMeta } from '../data/sessions';
 import { getTeamColor } from '../data/teams';
@@ -85,7 +86,7 @@ export default function Home() {
   const trackState = isTrackWet(snapshot);
 
   return (
-    <PageContainer className="pt-6 sm:pt-8">
+    <PageContainer className="pt-4 sm:pt-6 lg:pt-8">
       <Hero
         live={live}
         current={current}
@@ -94,7 +95,9 @@ export default function Home() {
         loading={sessionsLoading}
       />
 
-      <div className="mt-4 grid gap-4 lg:grid-cols-[1.55fr_1fr]">
+      <QuickAccess />
+
+      <div className="mt-4 grid gap-4 xl:grid-cols-[1.45fr_1fr]">
         <Championship drivers={drivers} constructors={constructors} />
         <SessionQueue current={current} live={live} upcoming={upcoming} loading={sessionsLoading} />
       </div>
@@ -102,7 +105,7 @@ export default function Home() {
       <section className="mt-4">
         <Panel flush className="overflow-hidden">
           <div className="flex items-center justify-between gap-4 border-b border-line/[0.06] px-5 py-4 sm:px-6">
-            <PanelTitle eyebrow="Season" title="Next up" />
+            <PanelTitle eyebrow="Season" title="Upcoming race weekends" />
             <Link
               to="/calendar"
               className="link-wipe shrink-0 text-[11px] font-semibold tracking-[0.06em] text-mist-400 uppercase hover:text-mist-100"
@@ -117,7 +120,7 @@ export default function Home() {
               description="No more rounds on the calendar for this season."
             />
           ) : (
-            <div className="grid divide-y divide-line/[0.05] sm:grid-cols-3 sm:divide-x sm:divide-y-0">
+            <div className="grid divide-y divide-line/[0.05] md:grid-cols-3 md:divide-x md:divide-y-0">
               {nextRaces.map((race, index) => (
                 <RaceCard key={race.round} race={race} first={index === 0} />
               ))}
@@ -149,125 +152,201 @@ function Hero({
   const meta = current ? getSessionMeta(current.session_name, current.session_type) : null;
   const isLive = Boolean(live);
   const target = current?.date_start ?? null;
+  const circuitName = current?.location || current?.circuit_short_name;
 
   return (
     <section
-      className={`relative overflow-hidden rounded-md border bg-ink-850 ${
-        isLive ? 'border-live/40' : 'border-line/10'
+      className={`relative overflow-hidden rounded-2xl border bg-ink-850/90 shadow-[var(--shadow-lift)] ${
+        isLive ? 'border-live/35' : 'border-line/12'
       }`}
     >
-      <div className="relative p-6 sm:p-9 lg:p-11">
-        <div className="grid gap-8 lg:grid-cols-[1fr_auto] lg:items-end">
+      <div
+        aria-hidden
+        className="pointer-events-none absolute inset-0 bg-[radial-gradient(900px_320px_at_10%_-10%,var(--glow-red),transparent_60%),radial-gradient(700px_300px_at_100%_0%,var(--glow-cool),transparent_55%)]"
+      />
+      <div className="relative p-5 sm:p-8 lg:p-10">
+        <div className="grid gap-8 lg:grid-cols-[1.2fr_0.8fr] lg:items-end">
           <div className="min-w-0">
-            <p className="eyebrow mb-4">
-              {new Date().getFullYear()} Formula 1 World Championship
-            </p>
+            <div className="mb-4 flex flex-wrap items-center gap-2">
+              <span className="rounded-full border border-line/12 bg-ink-900/40 px-3 py-1 font-mono text-[10px] font-semibold tracking-[0.16em] text-mist-300 uppercase">
+                {new Date().getFullYear()} Season hub
+              </span>
+              {isLive && meta && (
+                <span className="inline-flex items-center gap-2 rounded-full border border-live/30 bg-live/12 px-3 py-1 text-live">
+                  <span className="relative flex size-1.5">
+                    <span className="absolute inline-flex size-full animate-ping rounded-full bg-live opacity-70" />
+                    <span className="relative inline-flex size-1.5 rounded-full bg-live" />
+                  </span>
+                  <span className="font-mono text-[10px] font-semibold tracking-[0.14em] uppercase">{meta.label} live</span>
+                </span>
+              )}
+            </div>
 
-            <h1 className="font-display text-[clamp(2.4rem,8.5vw,4.75rem)] leading-[0.9] font-black tracking-[-0.05em] text-mist-50">
+            <h1 className="max-w-4xl font-display text-[clamp(2.2rem,7vw,5rem)] leading-[0.88] font-black tracking-[-0.055em] text-mist-50">
               {isLive ? (
                 <>
-                  ON AIR
+                  Race weekend,
                   <br />
-                  RIGHT NOW
+                  right now.
                 </>
               ) : (
                 <>
-                  WATCH F1
+                  Follow every
                   <br />
-                  LIVE
+                  Formula 1 session.
                 </>
               )}
             </h1>
 
-            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[13px] text-mist-300">
+            <div className="mt-5 flex flex-wrap items-center gap-x-3 gap-y-2 text-[14px] text-mist-300">
               {loading && !current ? (
-                <Skeleton className="h-4 w-64" />
+                <Skeleton className="h-4 w-72" />
               ) : current ? (
                 <>
-                  <span className="font-semibold text-mist-50">
-                    {current.location || current.circuit_short_name}
+                  <span className="inline-flex items-center gap-2 font-semibold text-mist-50">
+                    {current.country_name && <Flag country={current.country_name} />}
+                    {circuitName}
                   </span>
-                  {current.country_name && (
-                    <span className="inline-flex items-center gap-1.5 text-mist-400">
-                      <Flag country={current.country_name} />
-                      {current.country_name}
-                    </span>
-                  )}
-                  <span className="text-mist-600">/</span>
+                  <span className="text-mist-600">•</span>
                   <span className="text-mist-400">
-                    {formatShortDate(current.date_start)} ·{' '}
-                    {formatTimeZoned(current.date_start)}
+                    {meta?.label ?? current.session_name} · {formatShortDate(current.date_start)} · {formatTimeZoned(current.date_start)}
                   </span>
                 </>
               ) : (
-                <span className="text-mist-400">Season schedule published soon</span>
+                <span className="text-mist-400">Live streams, schedules, results, standings and highlights in one place.</span>
               )}
             </div>
 
             <div className="mt-7 flex flex-wrap items-center gap-2.5">
               <ButtonLink to="/stream" variant={isLive ? 'live' : 'primary'} size="lg">
-                {isLive ? 'Watch live now' : 'Watch live'}
+                <TvMinimalPlay className="size-4" />
+                {isLive ? 'Open live stream' : 'Watch streams'}
               </ButtonLink>
-              <ButtonLink to="/highlights" variant="secondary" size="lg">
-                Race highlights
+              <ButtonLink to="/calendar" variant="secondary" size="lg">
+                <CalendarClock className="size-4" />
+                Race calendar
               </ButtonLink>
-              <ButtonLink to="/standings" variant="ghost" size="lg">
-                Standings
+              <ButtonLink to="/highlights" variant="ghost" size="lg">
+                <TvMinimalPlay className="size-4" />
+                Highlights
               </ButtonLink>
+            </div>
+
+            <div className="mt-8 grid gap-3 sm:grid-cols-3">
+              <HeroStat label="Championship" value="Standings & points" to="/standings" />
+              <HeroStat label="Results" value="Race, quali & grid" to="/results" />
+              <HeroStat label="News" value="Latest paddock stories" to="/news" />
             </div>
           </div>
 
-          {/* Session state block */}
-          <div className="flex shrink-0 flex-col items-start gap-4 lg:items-end">
-            {isLive && meta ? (
-              <div className="rounded-md border border-live/30 bg-live/10 px-5 py-4 lg:text-right">
-                <LiveDot label={meta.label} className="lg:justify-end" />
-                <p className="num mt-2.5 text-2xl font-bold text-mist-50">
-                  {formatTimeZoned(live!.date_start)}
-                </p>
-                <p className="mt-1 font-mono text-[10px] tracking-[0.1em] text-mist-400 uppercase">
-                  Started · in progress
-                </p>
+          <div className="flex flex-col gap-4">
+            <div className="rounded-xl border border-line/10 bg-ink-900/45 p-4 backdrop-blur-sm sm:p-5">
+              <div className="mb-4 flex items-start justify-between gap-3">
+                <div>
+                  <p className="eyebrow mb-2">{isLive ? 'On air' : 'Next session'}</p>
+                  <p className="text-lg font-semibold tracking-tight text-mist-50">
+                    {current ? meta?.label ?? current.session_name : 'Awaiting schedule'}
+                  </p>
+                  <p className="mt-1 text-[12px] text-mist-400">{circuitName ?? 'Formula 1'}</p>
+                </div>
+                {circuitName && <TrackMap circuit={circuitName} round={current?.session_key} className="size-16 opacity-90 sm:size-20" />}
               </div>
-            ) : current && meta ? (
-              <div className="rounded-md border border-line/10 bg-veil/[0.04] px-5 py-4 lg:text-right">
-                <p className="eyebrow mb-3 lg:justify-end">{meta.label} starts in</p>
-                <Countdown target={target} />
-              </div>
-            ) : null}
-          </div>
-        </div>
 
-        {/* Weather strip */}
-        <div className="mt-8 border-t border-line/[0.07] pt-5">
-          {!weather ? (
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-2">
-              {[0, 1, 2, 3].map((i) => (
-                <Skeleton key={i} className="h-4 w-20" />
-              ))}
+              {isLive && live ? (
+                <div className="rounded-lg border border-live/25 bg-live/10 px-4 py-4">
+                  <LiveDot label="Session in progress" />
+                  <p className="num mt-3 text-3xl font-bold text-mist-50">{formatTimeZoned(live.date_start)}</p>
+                  <p className="mt-1 font-mono text-[10px] tracking-[0.12em] text-mist-400 uppercase">Started {formatShortDate(live.date_start)}</p>
+                </div>
+              ) : current ? (
+                <div className="rounded-lg border border-line/10 bg-veil/[0.03] px-4 py-4">
+                  <p className="font-mono text-[10px] tracking-[0.14em] text-mist-500 uppercase">Countdown</p>
+                  <div className="mt-3">
+                    <Countdown target={target} />
+                  </div>
+                </div>
+              ) : (
+                <div className="rounded-lg border border-line/10 bg-veil/[0.03] px-4 py-4 text-sm text-mist-400">
+                  Session timing will appear here when the next event is published.
+                </div>
+              )}
             </div>
-          ) : (
-            <div className="flex flex-wrap items-center gap-x-6 gap-y-3">
-              <span className="eyebrow mr-1">Track</span>
-              <WeatherStat label="Air" value={weather.air_temperature} unit="°C" />
-              <WeatherStat label="Track" value={weather.track_temperature} unit="°C" />
-              <WeatherStat label="Humidity" value={weather.humidity} unit="%" />
-              <WeatherStat label="Wind" value={weather.wind_speed} unit="km/h" />
-              <span
-                className={`inline-flex items-center rounded-xs border px-2 py-1 font-mono text-[9.5px] font-semibold tracking-[0.12em] uppercase ${
-                  trackState === true
-                    ? 'border-telemetry/40 bg-telemetry/12 text-telemetry'
-                    : trackState === false
-                      ? 'border-sodium/40 bg-sodium/12 text-sodium'
-                      : 'border-line/12 bg-veil/5 text-mist-400'
-                }`}
-              >
-                {trackState === true ? 'Wet' : trackState === false ? 'Dry' : 'Conditions n/a'}
-              </span>
+
+            <div className="rounded-xl border border-line/10 bg-ink-900/35 p-4 backdrop-blur-sm sm:p-5">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <p className="eyebrow">Track conditions</p>
+                <span
+                  className={`inline-flex items-center rounded-full border px-2.5 py-1 font-mono text-[9.5px] font-semibold tracking-[0.12em] uppercase ${
+                    trackState === true
+                      ? 'border-telemetry/40 bg-telemetry/12 text-telemetry'
+                      : trackState === false
+                        ? 'border-sodium/40 bg-sodium/12 text-sodium'
+                        : 'border-line/12 bg-veil/5 text-mist-400'
+                  }`}
+                >
+                  {trackState === true ? 'Wet track' : trackState === false ? 'Dry track' : 'Awaiting data'}
+                </span>
+              </div>
+
+              {!weather ? (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  {[0, 1, 2, 3].map((i) => (
+                    <Skeleton key={i} className="h-14 w-full rounded-lg" />
+                  ))}
+                </div>
+              ) : (
+                <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+                  <WeatherStat label="Air" value={weather.air_temperature} unit="°C" />
+                  <WeatherStat label="Track" value={weather.track_temperature} unit="°C" />
+                  <WeatherStat label="Humidity" value={weather.humidity} unit="%" />
+                  <WeatherStat label="Wind" value={weather.wind_speed} unit="km/h" />
+                </div>
+              )}
             </div>
-          )}
+          </div>
         </div>
       </div>
+    </section>
+  );
+}
+
+function HeroStat({ label, value, to }: { label: string; value: string; to: string }) {
+  return (
+    <Link
+      to={to}
+      className="group rounded-xl border border-line/10 bg-ink-900/30 px-4 py-3 transition-all hover:-translate-y-px hover:border-line/20 hover:bg-ink-900/45"
+    >
+      <p className="font-mono text-[9.5px] tracking-[0.14em] text-mist-500 uppercase">{label}</p>
+      <p className="mt-1.5 text-sm font-semibold text-mist-100 group-hover:text-mist-50">{value}</p>
+    </Link>
+  );
+}
+
+function QuickAccess() {
+  const items = [
+    { to: '/schedule', label: 'Weekend Sessions', description: 'Practice, qualifying, sprint and race times', icon: CalendarClock },
+    { to: '/results', label: 'Race Results', description: 'Grand Prix and Sprint classifications', icon: FlagIcon },
+    { to: '/qualifying', label: 'Qualifying', description: 'Q1, Q2 and Q3 breakdowns', icon: Gauge },
+    { to: '/drivers', label: 'Drivers', description: 'The current grid and team line-ups', icon: Users },
+  ];
+  return (
+    <section className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
+      {items.map((item) => {
+        const Icon = item.icon;
+        return (
+          <Link key={item.to} to={item.to} className="panel panel-interactive group block p-4 sm:p-5">
+            <div className="mb-3 flex items-center justify-between gap-3">
+              <span className="inline-flex size-9 items-center justify-center rounded-lg border border-line/12 bg-ink-900/40 text-mist-200">
+                <Icon className="size-4.5" />
+              </span>
+              <ArrowRight className="size-4 text-mist-500 transition-transform group-hover:translate-x-0.5 group-hover:text-mist-300" />
+            </div>
+            <p className="eyebrow mb-2">Explore</p>
+            <p className="text-[15px] font-semibold tracking-tight text-mist-50">{item.label}</p>
+            <p className="mt-1.5 text-[12.5px] leading-relaxed text-mist-400">{item.description}</p>
+          </Link>
+        );
+      })}
     </section>
   );
 }
@@ -282,15 +361,15 @@ function WeatherStat({
   unit: string;
 }) {
   return (
-    <span className="inline-flex items-baseline gap-2">
-      <span className="font-mono text-[10px] tracking-[0.1em] text-mist-500 uppercase">
+    <div className="rounded-lg border border-line/10 bg-veil/[0.03] px-3 py-3">
+      <span className="block font-mono text-[9.5px] tracking-[0.12em] text-mist-500 uppercase">
         {label}
       </span>
-      <span className="num text-[13px] font-semibold text-mist-100">
+      <span className="num mt-1.5 block text-[18px] font-bold text-mist-50">
         {value === null ? '—' : Math.round(value)}
-        {value !== null && <span className="ml-0.5 text-[10px] text-mist-500">{unit}</span>}
+        {value !== null && <span className="ml-0.5 text-[11px] font-medium text-mist-500">{unit}</span>}
       </span>
-    </span>
+    </div>
   );
 }
 
@@ -560,37 +639,41 @@ function RaceCard({
   return (
     <Link
       to="/calendar"
-      className="group relative flex flex-col gap-4 p-5 transition-colors hover:bg-veil/[0.03] sm:p-6"
+      className="group relative flex flex-col gap-5 p-5 transition-all hover:bg-veil/[0.03] sm:p-6"
     >
-      <div className="flex items-start justify-between gap-3">
+      <div className="absolute inset-x-5 top-0 h-px bg-gradient-to-r from-transparent via-line/10 to-transparent opacity-0 transition-opacity group-hover:opacity-100 sm:inset-x-6" />
+      <div className="flex items-start justify-between gap-4">
         <div className="min-w-0">
-          <p className="eyebrow mb-2 flex items-center gap-1.5">
+          <p className="eyebrow mb-2.5 flex items-center gap-1.5">
             <Flag country={race.country} />
             Round {Number(race.round)}
-            {first && <span className="text-mist-400">· Next</span>}
+            {first && <span className="rounded-full bg-f1-red/15 px-2 py-0.5 text-f1-red">Next</span>}
           </p>
-          <h3 className="truncate text-[15px] font-semibold text-mist-50 group-hover:text-mist-100">
+          <h3 className="truncate text-[17px] font-semibold tracking-tight text-mist-50 group-hover:text-mist-100">
             {race.raceName}
           </h3>
-          <p className="mt-1 truncate text-[11.5px] text-mist-500">{race.circuitName}</p>
+          <p className="mt-1 truncate text-[12px] text-mist-500">{race.circuitName}</p>
+          <p className="mt-0.5 truncate text-[11px] text-mist-600">{race.locality}</p>
         </div>
-        <TrackMap circuit={race.locality} round={race.round} className="size-14" />
+        <div className="shrink-0 rounded-xl border border-line/10 bg-ink-900/35 p-2">
+          <TrackMap circuit={race.locality} round={race.round} className="size-14 sm:size-16" />
+        </div>
       </div>
 
-      <div className="mt-auto flex items-end justify-between gap-3 border-t border-line/[0.06] pt-3.5">
+      <div className="mt-auto flex items-end justify-between gap-3 border-t border-line/[0.07] pt-4">
         <div className="min-w-0">
           <p className="truncate font-mono text-[11px] text-mist-300">
             {formatShortDate(start)} · {formatTimeZoned(start)}
           </p>
-          <p className="mt-1 font-mono text-[10px] text-mist-500">
+          <p className="mt-1 font-mono text-[10px] tracking-[0.08em] text-mist-500 uppercase">
             {relativeDayLabel(start ?? race.date)}
           </p>
         </div>
         {first ? (
-          <CountdownStat target={start} label="to go" />
+          <CountdownStat target={start} label="to lights out" />
         ) : (
           <Stat
-            label="Local"
+            label="Local start"
             value={
               <span className="text-[15px]">
                 {start ? formatTimeZoned(start).split(' ')[0] : 'TBA'}

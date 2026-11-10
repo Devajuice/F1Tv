@@ -6,20 +6,21 @@ export type ButtonVariant = 'primary' | 'secondary' | 'ghost' | 'live';
 export type ButtonSize = 'sm' | 'md' | 'lg';
 
 const BASE =
-  'inline-flex select-none items-center justify-center gap-2 rounded-sm font-semibold uppercase tracking-[0.08em] whitespace-nowrap transition-colors duration-200 ease-swift disabled:pointer-events-none disabled:opacity-40';
+  'inline-flex select-none items-center justify-center gap-2 rounded-full font-semibold uppercase tracking-[0.08em] whitespace-nowrap transition-all duration-200 ease-expo disabled:pointer-events-none disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-f1-red/50';
 
 const VARIANTS: Record<ButtonVariant, string> = {
-  // Neutral, high-contrast primary: the chrome stays quiet, the data reads.
-  primary: 'bg-mist-50 text-ink-950 hover:bg-mist-100',
+  primary:
+    'bg-mist-50 text-ink-950 shadow-[0_10px_24px_-16px_rgb(0_0_0/0.5)] hover:-translate-y-px hover:bg-mist-100',
   secondary:
-    'border border-line/15 text-mist-200 hover:border-line/30 hover:text-mist-50',
+    'border border-line/15 bg-ink-850/40 text-mist-100 backdrop-blur-sm hover:-translate-y-px hover:border-line/30 hover:bg-ink-800/60',
   ghost: 'text-mist-300 hover:bg-veil/6 hover:text-mist-50',
-  live: 'bg-live text-white hover:brightness-110',
+  live:
+    'bg-live text-white shadow-[0_14px_30px_-16px_var(--pal-live)] hover:-translate-y-px hover:brightness-110',
 };
 
 const SIZES: Record<ButtonSize, string> = {
-  sm: 'h-8 px-3 text-[10px]',
-  md: 'h-10 px-4 text-[11px]',
+  sm: 'h-9 px-3.5 text-[10px]',
+  md: 'h-11 px-5 text-[11px]',
   lg: 'h-12 px-6 text-xs',
 };
 

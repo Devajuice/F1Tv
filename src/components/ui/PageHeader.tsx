@@ -25,15 +25,15 @@ export function PageHeader({
   className,
 }: PageHeaderProps) {
   return (
-    <header className={cn('mb-7 sm:mb-9', className)}>
-      <div className="flex flex-col gap-5 sm:flex-row sm:items-end sm:justify-between">
+    <header className={cn('mb-8 sm:mb-10', className)}>
+      <div className="flex flex-col gap-5 rounded-2xl border border-line/10 bg-ink-850/45 p-5 backdrop-blur-sm sm:p-6 lg:flex-row lg:items-end lg:justify-between">
         <div className="min-w-0">
           {eyebrow && <p className="eyebrow mb-2.5">{eyebrow}</p>}
-          <h1 className="font-display text-[clamp(1.75rem,4.5vw,2.5rem)] leading-[1.05] font-extrabold tracking-[-0.035em] text-mist-50">
+          <h1 className="font-display text-[clamp(1.9rem,4.8vw,3rem)] leading-[0.98] font-black tracking-[-0.045em] text-mist-50">
             {title}
           </h1>
           {description && (
-            <div className="mt-2.5 max-w-2xl text-[13.5px] leading-relaxed text-mist-400">
+            <div className="mt-3 max-w-3xl text-[14px] leading-relaxed text-mist-400 sm:text-[15px]">
               {description}
             </div>
           )}
